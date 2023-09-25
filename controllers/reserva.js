@@ -396,9 +396,12 @@ const estadoReservasPorFecha = async (req, res = response) => {
 
 /**
  * REPORTE: RECAUDACION, FILTRO POR FECHA Y CANCHA- CALCULAR MONTO TOTAL DEL CONSOLIDADO
- * 1- deberá traer un objeto por fecha y cancha
- * 2- si la fecha es distinta, no deberá continuar la suma de monto_consolidado y sena_consolidada
- * 3- si la reserva solo tiene señas, se debera vincular u obtener el precio de la cancha para realizar el calculo de diferencia adeudada.
+ * 1- Deberá traer un objeto por fecha y cancha                                                                             
+ * 2- Si la fecha es distinta, no deberá continuar la suma de monto_consolidado y sena_consolidada    x
+ * 3- Si la reserva solo tiene señas, se debera obtener el precio de la cancha desde la configuracion x
+ *    actual para realizar el calculo de diferencia adeudada.
+ * 4- Cada fecha y cancha deberá tener un unico precio de: monto_consolidado, seña_consolidada y monto_deuda
+ * 5- Evitar que al cambiar de fecha, se sigan acumulando los montos
  */
 const estadoRecaudacion = async (req, res = response) => {
     const {cancha,fechaIni, fechaFin} = req.params;
@@ -435,44 +438,23 @@ const estadoRecaudacion = async (req, res = response) => {
             // Formatea los resultados de la consulta
             const reservasFormateadas = estadoReservas.map((reserva) => {
                  
-                    monto_consolidado = reserva.monto_cancha + monto_consolidado;
-                    senas_consolidadas = reserva.monto_sena + senas_consolidadas;
-                    monto_deuda = monto_consolidado - senas_consolidadas;
+                  monto_consolidado = reserva.monto_cancha + monto_consolidado;
+                  senas_consolidadas = reserva.monto_sena + senas_consolidadas;
+                  monto_deuda = monto_consolidado - senas_consolidadas;
+                    
+                 // Crea un nuevo arreglo que contenga solo las reservas con la misma fecha
+                // const fechasIguales = estadoReservas.filter((reserva) => reserva.fechaCopia === reserva.fechaCopia);
+                const fechasIguales = estadoReservas.filter((reserva, index) => {
+                    const fechaSinHora = reserva.fechaCopia.split(" ")[0];
+                    const fechaSinHoraOtraReserva = estadoReservas[index - 1].fechaCopia.split(" ")[0];
+                    return fechaSinHora === fechaSinHoraOtraReserva;
+                  });
+                  
+                  console.log(fechasIguales);
+                
 
-                    // Crea un nuevo arreglo que contenga solo las reservas con la misma fecha
-                    const fechasIguales = estadoReservas.filter((reserva) => reserva.fechaCopia === reserva.fechaCopia);
-                    const contarFechas = fechasIguales.length;
-                    console.log({contarFechas})
-
-                    // Trato: si los montos consolidados = 0, trabajo la fecha de la tabla configuracion
-                    if (monto_consolidado === 0) {
-                        monto_deuda = senas_consolidadas; 
-                        console.log({monto_deuda})
-                     
-                        if (contarFechas > 1) {
-                            monto_deuda = 0;
-                            monto_deuda = (montoCancha * contarFechas) - senas_consolidadas;    
-                        }
-                    }
-
-                    // Trabajar con fechas distintas para que no se sumen todos los montos
-                    
-                    
-                        if (senas_consolidadas === 0) {
-                            monto_deuda = 0;
-                        }
-
-                        // monto_deuda = monto_consolidado - senas_consolidadas
-                    
-                    
-                    // si las fechas son distintas, evitar que continue la suma
-                    // if (!fechasIguales) {
-                      
-                    // }   
-                    
-                    // si no existen senas_consolidadas, deuda  = 0
-                    
-                 return {
+ 
+                return {
                     fecha: reserva.fechaCopia,
                     cancha: reserva.cancha,
                     monto_consolidado: monto_consolidado,
@@ -480,6 +462,8 @@ const estadoRecaudacion = async (req, res = response) => {
                     pendiente_pago: monto_deuda
                 };
             });
+
+            console.log({reservasFormateadas})
 
 
             // Valida si se encontraron reservas
