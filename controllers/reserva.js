@@ -396,14 +396,16 @@ const estadoReservasPorFecha = async (req, res = response) => {
 
 /**
  * REPORTE: RECAUDACION, FILTRO POR FECHA Y CANCHA- CALCULAR MONTO TOTAL DEL CONSOLIDADO
+ * 1- deberá traer un objeto por fecha y cancha
+ * 2- si la fecha es distinta, no deberá continuar la suma de monto_consolidado y sena_consolidada
+ * 3- si la reserva solo tiene señas, se debera vincular u obtener el precio de la cancha para realizar el calculo de diferencia adeudada.
  */
 const estadoRecaudacion = async (req, res = response) => {
     const {cancha,fechaIni, fechaFin} = req.params;
     let monto_consolidado = 0.0;
     let senas_consolidadas = 0.0;
-    let monto_deuda = 0.0;
-
-         
+    let monto_deuda = 0.0;   
+        
     // Valida los parámetros de entrada
      if (!fechaIni || !fechaFin) {
         return res.status(400).json({
@@ -411,40 +413,74 @@ const estadoRecaudacion = async (req, res = response) => {
             msg: "Debe especificar las fechas de inicio y fin",
         });
     }
-    try {    
-        
+
+    try {       
             const rangoFechas = {
                 $gte: new Date(fechaIni),
                 $lte: new Date(fechaFin)
             };
 
+            // Obtengo el precio de la cancha
+            const precioCancha = await Configuracion.find({
+                nombre: cancha, 
+            });
+            const montoCancha = precioCancha?.[0]?.monto_cancha;
+   
             // Obtiene las reservas en el rango de fechas especificado
                 const estadoReservas = await Reserva.find({
                     cancha,
                     fecha: rangoFechas
                 });
 
-
             // Formatea los resultados de la consulta
-            const reservasFormateadas = estadoReservas.reduce((acumulado,reserva) => {
-                
-                if (acumulado.fecha !== reserva.fecha) {
+            const reservasFormateadas = estadoReservas.map((reserva) => {
+                 
+                    monto_consolidado = reserva.monto_cancha + monto_consolidado;
+                    senas_consolidadas = reserva.monto_sena + senas_consolidadas;
+                    monto_deuda = monto_consolidado - senas_consolidadas;
 
-                    acumulado = {
-                      fecha: reserva.fecha,
-                      cancha: reserva.cancha,
-                      monto_consolidado: reserva.monto_cancha,
-                      sena: reserva.monto_sena,
-                      pendiente_pago: reserva.monto_consolidado - reserva.monto_sena,
-                    };
-                  } else {
-                    acumulado.monto_consolidado += reserva.monto_cancha;
-                    acumulado.sena += reserva.monto_sena;
-                    acumulado.pendiente_pago = acumulado.monto_consolidado - acumulado.sena;
-                }
+                    // Crea un nuevo arreglo que contenga solo las reservas con la misma fecha
+                    const fechasIguales = estadoReservas.filter((reserva) => reserva.fechaCopia === reserva.fechaCopia);
+                    const contarFechas = fechasIguales.length;
+                    console.log({contarFechas})
+
+                    // Trato: si los montos consolidados = 0, trabajo la fecha de la tabla configuracion
+                    if (monto_consolidado === 0) {
+                        monto_deuda = senas_consolidadas; 
+                        console.log({monto_deuda})
+                     
+                        if (contarFechas > 1) {
+                            monto_deuda = 0;
+                            monto_deuda = (montoCancha * contarFechas) - senas_consolidadas;    
+                        }
+                    }
+
+                    // Trabajar con fechas distintas para que no se sumen todos los montos
+                    
+                    
+                        if (senas_consolidadas === 0) {
+                            monto_deuda = 0;
+                        }
+
+                        // monto_deuda = monto_consolidado - senas_consolidadas
+                    
+                    
+                    // si las fechas son distintas, evitar que continue la suma
+                    // if (!fechasIguales) {
                       
-                return acumulado;
-                }, { fecha: estadoReservas[0].fecha, cancha: null, monto_consolidado: 0, sena: 0, pendiente_pago: 0 });
+                    // }   
+                    
+                    // si no existen senas_consolidadas, deuda  = 0
+                    
+                 return {
+                    fecha: reserva.fechaCopia,
+                    cancha: reserva.cancha,
+                    monto_consolidado: monto_consolidado,
+                    sena: senas_consolidadas,
+                    pendiente_pago: monto_deuda
+                };
+            });
+
 
             // Valida si se encontraron reservas
             if (!reservasFormateadas.length) {
