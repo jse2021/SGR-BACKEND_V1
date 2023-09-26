@@ -234,41 +234,49 @@ const getReservaClienteRango = async (req, res = response) => {
 }
 
 
+/**
+ *  ACTUALIZAR LAS RESERVAS: NO SE PODRA ACTUALIZAR LA FECHA PARA EVITAR ERRORES DE DATOS INCONSISTENTES 
+ */
 const actualizarReserva = async (req, res = response)=> {
 
-
     const reservaId = req.params.id;
-    try {
-        
-       const reserva = await Reserva.findById(reservaId)
-       if (!reserva) {
-        return  res.status(400).json({
-            ok: false,
-            msg:'La reserva no existe'
-        })
-       }
+    const fecha_copia  = req.body.fecha_copia;
+        try {
 
-       const nuevaReserva = { 
-        ...req.body
-       }
-        //new:true, significa que va a retorar los datos actualizados
-       const reservaActualizada = await Reserva.findByIdAndUpdate(reservaId, nuevaReserva,{new: true}); 
-       
-
-       res.json({
-        ok: true, 
-        reserva: nuevaReserva,
-        msg: "Reserva actualizada"
-    })
-       
-    } catch (error) {  
+            if (fecha_copia) {     
+                return  res.status(400).json({
+                    ok: false,
+                    msg:'No es posible cambiar la fecha'
+                })
+            } 
+            const reserva = await Reserva.findById(reservaId)
+                if (!reserva) {
+                    return  res.status(400).json({
+                        ok: false,
+                        msg:'La reserva no existe'
+                    })
+                }
+            const nuevaReserva = { 
+            ...req.body
+            }
+            //new:true, significa que va a retorar los datos actualizados
+            const reservaActualizada = await Reserva.findByIdAndUpdate(reservaId, nuevaReserva,{new: true}); 
+            return res.status(200).json({
+                ok: true, 
+                reserva: nuevaReserva,
+                msg: "Reserva actualizada"
+            })
+        }
+        catch (error) {  
         console.log({error})
-        res.status(500).json({
+        return res.status(500).json({
             ok:false,
             msg:"Consulte con el administrador"
         })
-    }
+        }
 }
+
+
 const eliminarReserva = async(req, res = response)=> {
 
 
@@ -396,90 +404,96 @@ const estadoReservasPorFecha = async (req, res = response) => {
 
 /**
  * REPORTE: RECAUDACION, FILTRO POR FECHA Y CANCHA- CALCULAR MONTO TOTAL DEL CONSOLIDADO
- * 1- Deberá traer un objeto por fecha y cancha                                                                             
- * 2- Si la fecha es distinta, no deberá continuar la suma de monto_consolidado y sena_consolidada    x
- * 3- Si la reserva solo tiene señas, se debera obtener el precio de la cancha desde la configuracion x
- *    actual para realizar el calculo de diferencia adeudada.
- * 4- Cada fecha y cancha deberá tener un unico precio de: monto_consolidado, seña_consolidada y monto_deuda
- * 5- Evitar que al cambiar de fecha, se sigan acumulando los montos
- */
+ * 1- En el reporte se deberá seleccionar una fecha y una cancha                                                                                                  x
+ * 2- Debe mostrar de la fecha y cancha: monto_consolidado, seña_consolidada y monto_deuda
+ * 3- Desarrollar codigo que: sume el total de monto_consolidad de la fecha, total seña de la fecha y total deuda de la fecha                                                                         
+ * PROBLEMAS QUE PODEMOS ENCONTRAR
+ * 4- Si la fecha es distinta, no deberá continuar la suma de monto_consolidado y sena_consolidada    
+ * 5- Si la reserva solo tiene señas, se debera obtener el precio de la cancha desde la configuracion actual para realizar el calculo de diferencia adeudada.
+  */
 const estadoRecaudacion = async (req, res = response) => {
-    const {cancha,fechaIni, fechaFin} = req.params;
+    const {cancha,fechaCopia} = req.params;
     let monto_consolidado = 0.0;
     let senas_consolidadas = 0.0;
-    let monto_deuda = 0.0;   
+    let monto_deuda = 0.0;  
+    let cantidadFechasIguales = 0;
+    let cantidadMontoCero = 0;
         
-    // Valida los parámetros de entrada
-     if (!fechaIni || !fechaFin) {
-        return res.status(400).json({
-            ok: false,
-            msg: "Debe especificar las fechas de inicio y fin",
-        });
-    }
 
     try {       
-            const rangoFechas = {
-                $gte: new Date(fechaIni),
-                $lte: new Date(fechaFin)
-            };
-
-            // Obtengo el precio de la cancha
-            const precioCancha = await Configuracion.find({
-                nombre: cancha, 
-            });
-            const montoCancha = precioCancha?.[0]?.monto_cancha;
+          
+        // Obtengo el precio de la cancha
+        const precioCancha = await Configuracion.find({
+            nombre: cancha, 
+        });
+        const montoCancha = precioCancha?.[0]?.monto_cancha;
    
-            // Obtiene las reservas en el rango de fechas especificado
-                const estadoReservas = await Reserva.find({
-                    cancha,
-                    fecha: rangoFechas
-                });
+        // Obtiene las reservas en el rango de fechas especificado
+        const reservasRegistradas = await Reserva.find({
+            cancha,
+            fecha: fechaCopia
+        });
 
-            // Formatea los resultados de la consulta
-            const reservasFormateadas = estadoReservas.map((reserva) => {
-                 
-                  monto_consolidado = reserva.monto_cancha + monto_consolidado;
-                  senas_consolidadas = reserva.monto_sena + senas_consolidadas;
-                  monto_deuda = monto_consolidado - senas_consolidadas;
-                    
-                 // Crea un nuevo arreglo que contenga solo las reservas con la misma fecha
-                // const fechasIguales = estadoReservas.filter((reserva) => reserva.fechaCopia === reserva.fechaCopia);
-                const fechasIguales = estadoReservas.filter((reserva, index) => {
-                    const fechaSinHora = reserva.fechaCopia.split(" ")[0];
-                    const fechaSinHoraOtraReserva = estadoReservas[index - 1].fechaCopia.split(" ")[0];
-                    return fechaSinHora === fechaSinHoraOtraReserva;
-                  });
-                  
-                  console.log(fechasIguales);
+        if (!reservasRegistradas[0]) {
+            return res.status(400).json({
+                ok: false, 
+                msg: "No existen reservas para la cancha indicada o fecha",
+            })  
+        }else{
+            // saber cuantas fechas iguales existen
+            const fechasIguales = reservasRegistradas.filter((reserva) => reserva.fechaCopia === reserva.fechaCopia);         
+            cantidadFechasIguales = fechasIguales.length;
+
+            //saber cuantas reservas de la fecha tienen monto_cancha = 0
+            const montoCero = reservasRegistradas.filter((reserva) => reserva.fechaCopia === reserva.fechaCopia && reserva.monto_cancha === 0);         
+            cantidadMontoCero = montoCero.length;
+
+            const resumen = reservasRegistradas.reduce((total, reserva) => {
+                total.monto_consolidado += reserva.monto_cancha;
+                total.senas_consolidadas += reserva.monto_sena;
                 
+                /**
+                 * Cuando solo existen $$ en monto_cancha
+                 */
+                if (total.senas_consolidadas === 0) {
+                    console.log("Es por aca")
+                    total.monto_deuda = total.senas_consolidadas;
+                }else{
+                    total.monto_deuda = total.monto_consolidado - total.senas_consolidadas;
+                }
 
- 
-                return {
-                    fecha: reserva.fechaCopia,
-                    cancha: reserva.cancha,
-                    monto_consolidado: monto_consolidado,
-                    sena: senas_consolidadas,
-                    pendiente_pago: monto_deuda
-                };
-            });
-
-            console.log({reservasFormateadas})
+                /**
+                 * cuando no existen $$ en monto_cancha y solo existen señas   
+                 */
+                if (cantidadMontoCero > 0 ) {
+                    total.monto_deuda = (montoCancha * cantidadMontoCero) - total.senas_consolidadas;
+                } 
+                total.monto_deuda = total.monto_consolidado - total.senas_consolidadas;
 
 
-            // Valida si se encontraron reservas
-            if (!reservasFormateadas.length) {
-                return res.status(404).json({
-                    ok: false,
-                    msg: "No se encontraron reservas en el rango de fechas especificado",
-                });
-            }
+                /**
+                 * SI MONTO_CONSOLIDADO === SENAS_CONSOLIDADAS || MONTO_CONSOLIDAD MENOR QUE SENAS_CONOSLIDADAS, AGREGAR MONTOCANCHA
+                 */
+                if ((total.monto_consolidado === total.senas_consolidadas) || (total.monto_consolidado < total.senas_consolidadas)) {
+                    total.monto_deuda = ((montoCancha * cantidadMontoCero) - total.monto_consolidado) - total.senas_consolidadas ; 
+                }
+                
+                return total;
 
-                return res.status(200).json({
+              }, {
+                Fecha: fechaCopia,
+                Cancha: cancha,
+                monto_consolidado: 0,
+                senas_consolidadas: 0,
+                monto_deuda: 0,
+              });  
+            return res.status(200).json({
                 ok: true, 
-                reservasFormateadas,
+                resumen,
                 msg: "Estado de las reservas",
             })  
-        }    
+        }
+    }    
     catch (error) {
         console.log({error})
         return res.status(500).json({
@@ -487,7 +501,8 @@ const estadoRecaudacion = async (req, res = response) => {
             msg:"Consulte con el administrador"
         })
     }
-}
+
+}    
 
 module.exports = {
     getReserva,

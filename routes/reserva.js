@@ -30,7 +30,7 @@ router.post('/',
 
  // Obtener Reservas
 
-router.get('/:cancha/:fechaIni/:fechaFin',estadoRecaudacion);
+router.get('/:cancha/:fechaCopia',estadoRecaudacion);
 router.get('/:estado_pago/:fechaIni/:fechaFin',estadoReservasPorFecha);
 router.get('/',getReserva);
 router.get('/:fechaCopia',getReservaFecha);
