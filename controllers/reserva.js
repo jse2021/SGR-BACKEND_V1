@@ -455,12 +455,15 @@ const estadoRecaudacion = async (req, res = response) => {
                 /**
                  * Cuando solo existen $$ en monto_cancha
                  */
-                if (total.senas_consolidadas === 0) {
-                    console.log("Es por aca")
-                    total.monto_deuda = total.senas_consolidadas;
-                }else{
-                    total.monto_deuda = total.monto_consolidado - total.senas_consolidadas;
-                }
+                
+
+                    // console.log("seña = 0")
+                    // total.monto_deuda = total.senas_consolidadas;
+
+                // }else{
+
+                    // total.monto_deuda = total.monto_consolidado - total.senas_consolidadas;
+                // }
 
                 /**
                  * cuando no existen $$ en monto_cancha y solo existen señas   
@@ -468,8 +471,12 @@ const estadoRecaudacion = async (req, res = response) => {
                 if (cantidadMontoCero > 0 ) {
                     total.monto_deuda = (montoCancha * cantidadMontoCero) - total.senas_consolidadas;
                 } 
-                total.monto_deuda = total.monto_consolidado - total.senas_consolidadas;
-
+                if (total.senas_consolidadas === 0) {
+                    total.monto_deuda = total.senas_consolidadas;
+                }else {
+                    total.monto_deuda = total.monto_consolidado - total.senas_consolidadas;
+                }
+                
 
                 /**
                  * SI MONTO_CONSOLIDADO === SENAS_CONSOLIDADAS || MONTO_CONSOLIDAD MENOR QUE SENAS_CONOSLIDADAS, AGREGAR MONTOCANCHA
