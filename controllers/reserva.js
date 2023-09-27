@@ -403,24 +403,18 @@ const estadoReservasPorFecha = async (req, res = response) => {
 
 
 /**
- * REPORTE: RECAUDACION, FILTRO POR FECHA Y CANCHA- CALCULAR MONTO TOTAL DEL CONSOLIDADO
- * 1- En el reporte se deberá seleccionar una fecha y una cancha                                                                                                  x
- * 2- Debe mostrar de la fecha y cancha: monto_consolidado, seña_consolidada y monto_deuda
- * 3- Desarrollar codigo que: sume el total de monto_consolidad de la fecha, total seña de la fecha y total deuda de la fecha                                                                         
- * PROBLEMAS QUE PODEMOS ENCONTRAR
- * 4- Si la fecha es distinta, no deberá continuar la suma de monto_consolidado y sena_consolidada    
- * 5- Si la reserva solo tiene señas, se debera obtener el precio de la cancha desde la configuracion actual para realizar el calculo de diferencia adeudada.
-  */
+ * REPORTE: RECAUDACION, FILTRO POR FECHA Y CANCHA- CALCULAR MONTO TOTAL DEL CONSOLIDADO - CALCULAR MONTO DEUDA
+*/
 const estadoRecaudacion = async (req, res = response) => {
     const {cancha,fechaCopia} = req.params;
-    let monto_consolidado = 0.0;
-    let senas_consolidadas = 0.0;
-    let monto_deuda = 0.0;  
+ 
     let cantidadFechasIguales = 0;
     let cantidadMontoCero = 0;
+    let cantidadMontoCeroSenas = 0;
         
 
     try {       
+
           
         // Obtengo el precio de la cancha
         const precioCancha = await Configuracion.find({
@@ -447,42 +441,48 @@ const estadoRecaudacion = async (req, res = response) => {
             //saber cuantas reservas de la fecha tienen monto_cancha = 0
             const montoCero = reservasRegistradas.filter((reserva) => reserva.fechaCopia === reserva.fechaCopia && reserva.monto_cancha === 0);         
             cantidadMontoCero = montoCero.length;
+            
+            //saber cuantas reservas de la fecha tienen monto_senas = 0
+            const montoCeroSenas = reservasRegistradas.filter((reserva) => reserva.fechaCopia === reserva.fechaCopia && reserva.monto_sena === 0);         
+            cantidadMontoCeroSenas = montoCeroSenas.length;
 
             const resumen = reservasRegistradas.reduce((total, reserva) => {
                 total.monto_consolidado += reserva.monto_cancha;
                 total.senas_consolidadas += reserva.monto_sena;
                 
                 /**
-                 * Cuando solo existen $$ en monto_cancha
+                 * CUANDO SOLO EXISTE  MONTO CANCHA
                  */
-                
-
-                    // console.log("seña = 0")
-                    // total.monto_deuda = total.senas_consolidadas;
-
-                // }else{
-
-                    // total.monto_deuda = total.monto_consolidado - total.senas_consolidadas;
-                // }
-
-                /**
-                 * cuando no existen $$ en monto_cancha y solo existen señas   
-                 */
-                if (cantidadMontoCero > 0 ) {
-                    total.monto_deuda = (montoCancha * cantidadMontoCero) - total.senas_consolidadas;
-                } 
-                if (total.senas_consolidadas === 0) {
+                if (cantidadMontoCero == 0 && cantidadMontoCeroSenas > 0 ) {
                     total.monto_deuda = total.senas_consolidadas;
-                }else {
-                    total.monto_deuda = total.monto_consolidado - total.senas_consolidadas;
                 }
                 
-
                 /**
-                 * SI MONTO_CONSOLIDADO === SENAS_CONSOLIDADAS || MONTO_CONSOLIDAD MENOR QUE SENAS_CONOSLIDADAS, AGREGAR MONTOCANCHA
+                 * CUANDO SOLO EXISTEN SEÑAS
                  */
-                if ((total.monto_consolidado === total.senas_consolidadas) || (total.monto_consolidado < total.senas_consolidadas)) {
-                    total.monto_deuda = ((montoCancha * cantidadMontoCero) - total.monto_consolidado) - total.senas_consolidadas ; 
+                if (cantidadMontoCero > 0 && cantidadMontoCeroSenas == 0 ) {
+                    total.monto_deuda = (montoCancha * cantidadMontoCero) - total.senas_consolidadas;
+                } 
+                
+                /**
+                 * SI MONTO_CONSOLIDADO === SENAS_CONSOLIDADAS Y CANT_MONTO_CONSOLIDADO > 0 OK 
+                 */
+                if ((total.monto_consolidado === total.senas_consolidadas) && (cantidadMontoCero > 0)) {
+                    total.monto_deuda = (montoCancha * cantidadMontoCero) - total.senas_consolidadas;
+                }
+
+                 /**
+                 * SI MONTO_CONSOLIDADO > SENAS_CONSOLIDADAS Y CANT_MONTO_CONSOLIDADO > 0 OK 
+                 */
+                 if ((total.monto_consolidado > total.senas_consolidadas) && (cantidadMontoCero > 0)) {
+                    total.monto_deuda = (montoCancha * cantidadMontoCero) - total.senas_consolidadas;
+                }
+
+                  /**
+                 * SI MONTO_CONSOLIDADO < SENAS_CONSOLIDADAS Y CANT_MONTO_CONSOLIDADO > 0 OK 
+                 */
+                  if ((total.monto_consolidado < total.senas_consolidadas) && (cantidadMontoCero > 0)) {
+                    total.monto_deuda = (montoCancha * cantidadMontoCero) - total.senas_consolidadas;
                 }
                 
                 return total;
@@ -502,14 +502,91 @@ const estadoRecaudacion = async (req, res = response) => {
         }
     }    
     catch (error) {
+
+    }
+
+}    
+
+/**
+ * REPORTE: RECAUDACION CON FORMAS DE PAGO
+ * 1- deberá tener parametros : fecha, cancha, forma_pago, estado_pago
+ * 2- deberá mostrar todas las hora de la fecha indicada
+ * 3- de la fecha, discrimina por estado, total, seña, impago 
+ * 4- si la seña se paga con efectivo y luego el total con transferencia -> ver que mostrar en todas las posibilidades de similar situacion
+ * 5- deberá mostrar las suma total sea cual sea el caso
+ * 6- Formas de pago: Tarjeta, Debito, Efectivo, Transferencia
+ */
+const recaudacionFormasDePago = async (req, res = response) => {
+    const {fechaCopia, cancha, forma_pago, estado_pago } = req.params;
+    let monto_consolidado = 0;
+    let sena_consolidada = 0;
+    let cantidad_señas = 0;
+    let cantidad_monto = 0;
+    let guardo_fPago;
+
+    try {
+    
+        // Obtiene las reservas
+        const reservasRegistradas = await Reserva.find({
+            fecha: fechaCopia,
+            cancha,
+            forma_pago,
+            estado_pago
+        });
+
+        //Obtengo si existen señas
+        const senas = reservasRegistradas.filter((reserva) => reserva.estado_pago === "SEÑA");         
+        cantidad_señas = senas.length;
+
+        //Obtengo si existen montos
+        const monto = reservasRegistradas.filter((reserva) => reserva.estado_pago === "TOTAL");         
+        cantidad_monto = monto.length;
+  
+        const resumenListado = reservasRegistradas.map((reserva) => {
+            monto_consolidado = reserva.monto_cancha + monto_consolidado;
+            sena_consolidada = reserva.monto_sena + sena_consolidada;
+
+            if (cantidad_señas > 0) {
+                guardo_fPago = reserva.forma_pago;
+                return {
+                    id: reserva.id,
+                    Fecha: reserva.fechaCopia,
+                    Hora: reserva.hora,
+                    Cancha: reserva.cancha,
+                    Monto: reserva.monto_cancha,
+                    Seña: reserva.monto_sena,
+                    Pago_Monto: "-",
+                    Pago_Sena: reserva.forma_pago,
+                    Usuario: reserva.user
+                };
+            }
+
+            // 6512e98e2f6de162adacc1d3
+            // return {
+            //     Fecha: reserva.fechaCopia,
+            //     Hora: reserva.hora,
+            //     Cancha: reserva.cancha,
+            //     Monto: reserva.monto_cancha,
+            //     Seña: reserva.monto_sena,
+            //     Forma_Pago: reserva.forma_pago,
+            //     Usuario: reserva.user
+            // };
+        })
+
+        return res.status(200).json({
+            ok: true, 
+            resumenListado,
+            msg: "Listado de reservas",
+        })         
+    } catch (error) {
         console.log({error})
         return res.status(500).json({
             ok:false,
             msg:"Consulte con el administrador"
         })
     }
+}
 
-}    
 
 module.exports = {
     getReserva,
@@ -520,7 +597,8 @@ module.exports = {
     actualizarReserva,
     eliminarReserva,
     estadoReservasPorFecha,
-    estadoRecaudacion
+    estadoRecaudacion,
+    recaudacionFormasDePago
 
 }
 

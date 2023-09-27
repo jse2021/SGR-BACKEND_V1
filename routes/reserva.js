@@ -5,7 +5,7 @@
 const {Router} = require('express')
 const {validarJWT} = require('../middlewares/validar-jwt')
 const {getReserva, crearReserva, getReservaFecha, getReservaFechaCancha, getReservaClienteRango, 
-    actualizarReserva, eliminarReserva,estadoReservasPorFecha, estadoRecaudacion} = require('../controllers/reserva')
+    actualizarReserva, eliminarReserva,estadoReservasPorFecha, estadoRecaudacion, recaudacionFormasDePago} = require('../controllers/reserva')
 const router = Router();
 const {check} = require('express-validator')
 const {validarCampos} = require('../middlewares/validar-campos')
@@ -30,6 +30,7 @@ router.post('/',
 
  // Obtener Reservas
 
+router.get('/:fechaCopia/:cancha/:forma_pago/:estado_pago',recaudacionFormasDePago); 
 router.get('/:cancha/:fechaCopia',estadoRecaudacion);
 router.get('/:estado_pago/:fechaIni/:fechaFin',estadoReservasPorFecha);
 router.get('/',getReserva);
