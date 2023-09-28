@@ -98,7 +98,8 @@ const crearReserva = async(req, res = response)=> {
               msg: "Reserva registrada  exitosamente",       
               reserva: guardarReserva,
           })
-        } 
+        }
+         
     } catch (error) { 
         console.log({error})
             return  res.status(500).json({
@@ -315,7 +316,7 @@ const eliminarReserva = async(req, res = response)=> {
  * SECCION REPORTES
  */
 /**
- * REPORTE: CONSULTAR EL ESTADO DE LAS RESERVAS FILTRADO POR ESTADO DE PAGO
+ * REPORTE: CONSULTAR EL ESTADO DE LAS RESERVAS FILTRADO POR ESTADO DE PAGO Y RANGO DE FECHAS
  */
 const estadoReservasPorFecha = async (req, res = response) => {
     const {estado_pago,fechaIni, fechaFin} = req.params;
@@ -512,8 +513,9 @@ const estadoRecaudacion = async (req, res = response) => {
  * 1- deberá tener parametros : fecha, cancha, forma_pago, estado_pago
  * 2- deberá mostrar todas las hora de la fecha indicada
  * 3- de la fecha, discrimina por estado, total, seña, impago 
-  * 4- deberá mostrar las suma total sea cual sea el caso
+ * 4- deberá mostrar las suma total sea cual sea el caso
  * 5- Formas de pago: Tarjeta, Debito, Efectivo, Transferencia
+ * 6- TENDRA DISTINTOS FILTROS COMO CONSULTAR TODAS LAS CANCHAS Y TODAS LAS FORMAS DE PAGO DE UNA FECHA 
  * 7- 
  */
 const recaudacionFormasDePago = async (req, res = response) => {
@@ -533,9 +535,23 @@ const recaudacionFormasDePago = async (req, res = response) => {
             estado_pago
         });
         
+        //obtiene las reservas de todas las canchas
         const reservasfiltroCancha = await Reserva.find({
             fecha: fechaCopia,
             forma_pago,
+            estado_pago
+        });
+
+        // obtiene las reservas con todos los pagos
+        const reservasfiltroPagos = await Reserva.find({
+            fecha: fechaCopia,
+            cancha,
+            estado_pago
+        });
+        
+         // Obtiene las reservas con filtros fecha, cancha, forma_pago, estado_pago
+         const reservasfiltroPagosCancha = await Reserva.find({
+            fecha: fechaCopia,
             estado_pago
         });
  
@@ -546,6 +562,27 @@ const recaudacionFormasDePago = async (req, res = response) => {
         //Obtengo si existen montos
         const monto = reservasRegistradas.filter((reserva) => reserva.estado_pago === "TOTAL");         
         cantidad_monto = monto.length;
+
+        if (forma_pago === "TODAS" && cancha === "TODAS") {       
+            console.log("Paso por Todas")
+            // aplico filtro sin la cancha
+            const resumenFiltro4 = reservasfiltroPagosCancha.map((reserva)=>{
+                return {
+                    Fecha: reserva.fechaCopia,
+                    Hora: reserva.hora,
+                    Cancha: reserva.cancha,
+                    Monto: reserva.monto_cancha,
+                    Seña: reserva.monto_sena,
+                    Forma_Pago: reserva.forma_pago,
+                    Usuario: reserva.user
+                }; 
+            })
+            return res.status(200).json({
+                ok: true, 
+                resumenFiltro4,
+                msg: "Listado de reservas",
+            })  
+        }
 
         if (cancha === "TODAS") {       
             console.log("Paso por Todas")
@@ -560,7 +597,6 @@ const recaudacionFormasDePago = async (req, res = response) => {
                     Forma_Pago: reserva.forma_pago,
                     Usuario: reserva.user
                 }; 
-                          
             })
             return res.status(200).json({
                 ok: true, 
@@ -568,6 +604,29 @@ const recaudacionFormasDePago = async (req, res = response) => {
                 msg: "Listado de reservas",
             })  
         }
+
+        if (forma_pago === "TODAS") {       
+            console.log("Paso por Todas")
+            // aplico filtro sin la cancha
+            const resumenFiltro3 = reservasfiltroPagos.map((reserva)=>{
+                return {
+                    Fecha: reserva.fechaCopia,
+                    Hora: reserva.hora,
+                    Cancha: reserva.cancha,
+                    Monto: reserva.monto_cancha,
+                    Seña: reserva.monto_sena,
+                    Forma_Pago: reserva.forma_pago,
+                    Usuario: reserva.user
+                }; 
+            })
+            return res.status(200).json({
+                ok: true, 
+                resumenFiltro3,
+                msg: "Listado de reservas",
+            })  
+        }
+
+
 
         // funcion con filtro cancha
         const resumenListado = reservasRegistradas.map((reserva) => {
@@ -602,6 +661,8 @@ const recaudacionFormasDePago = async (req, res = response) => {
         })
     }
 }
+
+
 
 module.exports = {
     getReserva,

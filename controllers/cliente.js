@@ -87,21 +87,22 @@ const getCliente = async (req, res = response) => {
  */
 
 const getClientePorDni = async(req, res = response) => {
-    const {dni} = req.params;
+    const {dni, nombre, apellido} = req.params;
 
     try {
-        const cliente = await Cliente.findOne({dni});
-        if (!cliente) {
-            return  res.status(400).json({
-                ok: false,
-                msg:'El cliente no existe en la base de datos'
-            })
-        }
-        res.json({
-            ok: true, 
-            cliente,
-            msg: "Traigo todos los clientes"
-        }) 
+
+            const cliente = await Cliente.findOne({dni});
+                if (!cliente) {
+                    return  res.status(400).json({
+                        ok: false,
+                        msg:'El cliente no existe en la base de datos'
+                    })
+                }
+                return res.status(200).json({
+                    ok: true, 
+                    cliente,
+                    msg: "Traigo todos los clientes"
+                })     
 
     } catch (error) {
         console.log({error})
