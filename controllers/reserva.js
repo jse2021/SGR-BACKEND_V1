@@ -546,7 +546,7 @@ const recaudacionFormasDePago = async (req, res = response) => {
         //Obtengo si existen montos
         const monto = reservasRegistradas.filter((reserva) => reserva.estado_pago === "TOTAL");         
         cantidad_monto = monto.length;
-        
+
         if (cancha === "TODAS") {       
             console.log("Paso por Todas")
             // aplico filtro sin la cancha
@@ -559,8 +559,14 @@ const recaudacionFormasDePago = async (req, res = response) => {
                     Seña: reserva.monto_sena,
                     Forma_Pago: reserva.forma_pago,
                     Usuario: reserva.user
-                };           
+                }; 
+                          
             })
+            return res.status(200).json({
+                ok: true, 
+                resumenFiltro2,
+                msg: "Listado de reservas",
+            })  
         }
 
         // funcion con filtro cancha
@@ -586,6 +592,8 @@ const recaudacionFormasDePago = async (req, res = response) => {
             resumenListado,
             msg: "Listado de reservas",
         })    
+
+        
     } catch (error) {
         console.log({error})
         return res.status(500).json({
@@ -594,7 +602,6 @@ const recaudacionFormasDePago = async (req, res = response) => {
         })
     }
 }
-
 
 module.exports = {
     getReserva,
