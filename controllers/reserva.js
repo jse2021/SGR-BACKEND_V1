@@ -512,9 +512,9 @@ const estadoRecaudacion = async (req, res = response) => {
  * 1- deberá tener parametros : fecha, cancha, forma_pago, estado_pago
  * 2- deberá mostrar todas las hora de la fecha indicada
  * 3- de la fecha, discrimina por estado, total, seña, impago 
- * 4- si la seña se paga con efectivo y luego el total con transferencia -> ver que mostrar en todas las posibilidades de similar situacion
- * 5- deberá mostrar las suma total sea cual sea el caso
- * 6- Formas de pago: Tarjeta, Debito, Efectivo, Transferencia
+  * 4- deberá mostrar las suma total sea cual sea el caso
+ * 5- Formas de pago: Tarjeta, Debito, Efectivo, Transferencia
+ * 7- 
  */
 const recaudacionFormasDePago = async (req, res = response) => {
     const {fechaCopia, cancha, forma_pago, estado_pago } = req.params;
@@ -522,18 +522,23 @@ const recaudacionFormasDePago = async (req, res = response) => {
     let sena_consolidada = 0;
     let cantidad_señas = 0;
     let cantidad_monto = 0;
-    let guardo_fPago;
-
+   
     try {
     
-        // Obtiene las reservas
+        // Obtiene las reservas con filtros fecha, cancha, forma_pago, estado_pago
         const reservasRegistradas = await Reserva.find({
             fecha: fechaCopia,
             cancha,
             forma_pago,
             estado_pago
         });
-
+        
+        const reservasfiltroCancha = await Reserva.find({
+            fecha: fechaCopia,
+            forma_pago,
+            estado_pago
+        });
+ 
         //Obtengo si existen señas
         const senas = reservasRegistradas.filter((reserva) => reserva.estado_pago === "SEÑA");         
         cantidad_señas = senas.length;
@@ -541,43 +546,46 @@ const recaudacionFormasDePago = async (req, res = response) => {
         //Obtengo si existen montos
         const monto = reservasRegistradas.filter((reserva) => reserva.estado_pago === "TOTAL");         
         cantidad_monto = monto.length;
-  
-        const resumenListado = reservasRegistradas.map((reserva) => {
-            monto_consolidado = reserva.monto_cancha + monto_consolidado;
-            sena_consolidada = reserva.monto_sena + sena_consolidada;
-
-            if (cantidad_señas > 0) {
-                guardo_fPago = reserva.forma_pago;
+        
+        if (cancha === "TODAS") {       
+            console.log("Paso por Todas")
+            // aplico filtro sin la cancha
+            const resumenFiltro2 = reservasfiltroCancha.map((reserva)=>{
                 return {
-                    id: reserva.id,
                     Fecha: reserva.fechaCopia,
                     Hora: reserva.hora,
                     Cancha: reserva.cancha,
                     Monto: reserva.monto_cancha,
                     Seña: reserva.monto_sena,
-                    Pago_Monto: "-",
-                    Pago_Sena: reserva.forma_pago,
+                    Forma_Pago: reserva.forma_pago,
                     Usuario: reserva.user
-                };
-            }
+                };           
+            })
+        }
+
+        // funcion con filtro cancha
+        const resumenListado = reservasRegistradas.map((reserva) => {
+
+            monto_consolidado = reserva.monto_cancha + monto_consolidado;
+            sena_consolidada = reserva.monto_sena + sena_consolidada;
 
             // 6512e98e2f6de162adacc1d3
-            // return {
-            //     Fecha: reserva.fechaCopia,
-            //     Hora: reserva.hora,
-            //     Cancha: reserva.cancha,
-            //     Monto: reserva.monto_cancha,
-            //     Seña: reserva.monto_sena,
-            //     Forma_Pago: reserva.forma_pago,
-            //     Usuario: reserva.user
-            // };
+            return {
+                Fecha: reserva.fechaCopia,
+                Hora: reserva.hora,
+                Cancha: reserva.cancha,
+                Monto: reserva.monto_cancha,
+                Seña: reserva.monto_sena,
+                Forma_Pago: reserva.forma_pago,
+                Usuario: reserva.user
+            };
         })
-
+        
         return res.status(200).json({
             ok: true, 
             resumenListado,
             msg: "Listado de reservas",
-        })         
+        })    
     } catch (error) {
         console.log({error})
         return res.status(500).json({
