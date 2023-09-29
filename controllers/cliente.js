@@ -87,11 +87,11 @@ const getCliente = async (req, res = response) => {
  */
 
 const getClientePorDni = async(req, res = response) => {
-    const {dni, nombre, apellido} = req.params;
+    const {dni} = req.params;
 
     try {
-
-            const cliente = await Cliente.findOne({dni});
+           
+           const cliente = await Cliente.findOne({dni});
                 if (!cliente) {
                     return  res.status(400).json({
                         ok: false,
@@ -103,6 +103,7 @@ const getClientePorDni = async(req, res = response) => {
                     cliente,
                     msg: "Traigo todos los clientes"
                 })     
+            
 
     } catch (error) {
         console.log({error})
