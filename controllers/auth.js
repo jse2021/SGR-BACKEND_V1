@@ -44,8 +44,7 @@ const loginUsuario = async(req, res = response) => {
         res.json({
             ok:true,
             msg: "Accedo a calendario",
-            // uid: usuario.uid,
-            // name: usuario.name,
+            user: usuario.user,
             token
         })
         
