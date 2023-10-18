@@ -137,12 +137,12 @@ const crearUsuario = async(req, res = response ) => {
 const getUsuario = async (req, res = response)=>{
     
   
-    if (tipoUsuario !== 'Administrador') {
-        return res.status(400).json({
-            ok: false,
-            msg: "Ud. no puede buscar usuarios"
-        });
-    }
+    // if (tipoUsuario !== 'Administrador') {
+    //     return res.status(400).json({
+    //         ok: false,
+    //         msg: "Ud. no puede buscar usuarios"
+    //     });
+    // }
 
     try {
         const usuario = await Usuario.find()
@@ -174,16 +174,11 @@ const getUsuario = async (req, res = response)=>{
  * BUSCAR USUARIO POR USER
  */
 const getUsuarioPorUser = async(req, res = response) => {
-    const {user} = req.params;
+    const {apellido} = req.params;
 
     try {
-        if (tipoUsuario === 'Estandar') {
-            return res.status(400).json({
-                ok: false,
-                msg: "Ud. no puede buscar usuarios"
-            });
-        }
-        const usuario = await Usuario.findOne({user});
+   
+        const usuario = await Usuario.find({apellido});
         if (!usuario) {
             return  res.status(400).json({
                 ok: false,
@@ -215,12 +210,12 @@ const actualizarUsuario = async (req, res = response)=>{
     const {user} = req.params;
 
     try {
-        if (tipoUsuario === 'Estandar') {
-            return res.status(400).json({
-                ok: false,
-                msg: "Ud. no puede actualizar usuarios"
-            });
-        }
+        // if (tipoUsuario === 'Estandar') {
+        //     return res.status(400).json({
+        //         ok: false,
+        //         msg: "Ud. no puede actualizar usuarios"
+        //     });
+        // }
 
         const usuario = await Usuario.findOne({user});
         if (!usuario) {

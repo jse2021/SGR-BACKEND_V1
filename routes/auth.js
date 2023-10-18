@@ -25,7 +25,7 @@ router.post('/',
  
 
 router.get('/', getUsuario)
-router.get('/:user',getUsuarioPorUser)
+router.get('/:apellido',getUsuarioPorUser)
 router.put('/:user', actualizarUsuario);
 router.delete('/:user', eliminarUsuario);
 router.get('/renew', validarJWT, revalidartoken)
