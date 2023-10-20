@@ -55,9 +55,14 @@ const getCancha = async (req, res = response) => {
                 msg:'La cancha  no existe'
             })
         }
+
         return res.json({
             ok: true, 
-            canchas,
+            canchas: canchas.map((cancha) => ({
+                id: cancha.id,
+                nombre: cancha.nombre,
+                medidas: cancha.medidas
+            })),
             msg: "Traigo todas las canchas"
         }) 
     } catch (error) {
