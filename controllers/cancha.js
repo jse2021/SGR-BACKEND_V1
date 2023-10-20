@@ -55,7 +55,7 @@ const getCancha = async (req, res = response) => {
                 msg:'La cancha  no existe'
             })
         }
-        res.json({
+        return res.json({
             ok: true, 
             canchas,
             msg: "Traigo todas las canchas"
