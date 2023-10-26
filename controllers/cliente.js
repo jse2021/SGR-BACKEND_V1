@@ -86,12 +86,12 @@ const getCliente = async (req, res = response) => {
  * CONSULTA CLIENTE POR DNI
  */
 
-const getClientePorDni = async(req, res = response) => {
-    const {dni} = req.params;
+const getClientePorApellido = async(req, res = response) => {
+    const {apellido} = req.params;
 
     try {
            
-           const cliente = await Cliente.findOne({dni});
+           const cliente = await Cliente.find({apellido});
                 if (!cliente) {
                     return  res.status(400).json({
                         ok: false,
@@ -103,8 +103,6 @@ const getClientePorDni = async(req, res = response) => {
                     cliente,
                     msg: "Traigo todos los clientes"
                 })     
-            
-
     } catch (error) {
         console.log({error})
         res.status(500).json({
@@ -113,8 +111,6 @@ const getClientePorDni = async(req, res = response) => {
         })
     }
 }
-
-
 
 /**
  * ACTUALIZAR CLIENTE
@@ -192,7 +188,7 @@ const eliminarCliente = async(req, res = response) => {
 module.exports = {
     crearCliente,
     getCliente,
-    getClientePorDni,
+    getClientePorApellido,
     actualizarCliente,
     eliminarCliente
 }

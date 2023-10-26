@@ -185,7 +185,7 @@ const getUsuarioPorUser = async(req, res = response) => {
                 msg:'El usuario no existe'
             })
         }
-        res.json({
+        return res.status(200).json({
             ok: true, 
             usuario,
             msg: "Muestro usuario"
@@ -197,9 +197,7 @@ const getUsuarioPorUser = async(req, res = response) => {
             msg:"Consulte con el administrador"
         })
     }
-
 }
-
 
 /**
  * ACTUALIZAR USUARIO - EL FILTRO SE HACE DESDE EL FRONT

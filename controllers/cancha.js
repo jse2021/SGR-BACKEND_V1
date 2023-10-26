@@ -84,14 +84,14 @@ const getCanchaPorNombre = async(req, res = response) => {
 
     try {
         
-        const cancha  = await Cancha.findOne({nombre});
+        const cancha  = await Cancha.find({nombre});
         if (!cancha) {
             return res.status(400).json({
                 ok: false,
                 msg: 'La cancha no existe en la base de datos'
             })}
             
-            res.json({
+            return res.status(200).json({
                 ok: true,
                 cancha,
                 msg:'Traigo cancha'

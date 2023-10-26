@@ -5,7 +5,7 @@ const express = require('express')
 const router = express.Router();
 const {validationResult, check} =  require('express-validator')
 const {validarCampos} = require('../middlewares/validar-campos')
-const {crearCliente, getCliente,getClientePorDni, actualizarCliente, eliminarCliente} = require('../controllers/cliente')
+const {crearCliente, getCliente,getClientePorApellido, actualizarCliente, eliminarCliente} = require('../controllers/cliente')
 
 
 router.post('/crearCliente', [
@@ -21,7 +21,7 @@ router.post('/crearCliente', [
 ],crearCliente)
 
 router.get('/', getCliente);
-router.get('/:dni', getClientePorDni);
+router.get('/:apellido', getClientePorApellido);
 router.put('/:dni', actualizarCliente);
 router.delete('/:dni', eliminarCliente);
 
