@@ -79,7 +79,7 @@ const crearReserva = async(req, res = response)=> {
         /**
          * asociar a la reserva, el usuario creador
          */
-        const user = await Usuario.findOne({_id:uid});
+        const user = await Usuario.findOne({id:uid});
         const username = user.user;
         reserva.user = username;
 
