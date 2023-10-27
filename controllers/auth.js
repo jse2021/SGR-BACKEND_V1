@@ -38,13 +38,13 @@ const loginUsuario = async(req, res = response) => {
             });
         }
         //GENERO JWT
-        const token = await generarJWT(usuario.id, usuario.name);
+        const token = await generarJWT(usuario.id, usuario.user);
         
 
-        res.json({
+        return res.json({
             ok:true,
             msg: "Accedo a calendario",
-            user: usuario.user,
+            user,
             token
         })
         
@@ -59,18 +59,21 @@ const loginUsuario = async(req, res = response) => {
     }
 }
 
-
  const revalidartoken =  async(req, res=response) => {
-    const {uid, nombre} = req;
-    
+    const {id, user} = req;
 
-    const token = await generarJWT(usuario.id, usuario.nombre);
+    try {
+        const token = await generarJWT(id, user);
 
-    res.json({
-        ok:true,
-        token
-        
-    })
+        return res.json({
+            ok:true,
+            id,
+            user,
+            token
+        })
+    } catch (error) {
+        console.log(error)
+    }
 }
 
 /**
