@@ -24,7 +24,7 @@ const crearReserva = async(req, res = response)=> {
     const clienteRequest = req.body.cliente;     
     const canchaRequest = req.body.cancha;
     const estadoPagoRequest = req.body.estado_pago;
-    const fechaRequest = req.body.fecha;
+    const fechaRequest = req.body.fecha; //2023-11-12
     const horaRequest = req.body.hora;
     const uid = req.uid;
     
@@ -33,13 +33,12 @@ const crearReserva = async(req, res = response)=> {
     const existeCancha = configuracion.find(configuracion => configuracion.nombre === canchaRequest);
     const existeHorario = reservasRegistradas.find(reserva => {
         return (
-            reserva.fechaCopia === fechaRequest &&
+            reserva.fechaCopia === fechaRequest &&//2023-11-12
             reserva.hora === horaRequest &&
             reserva.cancha === canchaRequest
         )
     })
     console.log({existeHorario});
-    
     
     try {
 
