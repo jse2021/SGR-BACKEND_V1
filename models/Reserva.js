@@ -43,7 +43,7 @@ const ReservaSchema = Schema({
   },
   fecha: {
     type: Date, 
-    required: true,
+    // required: true,
     format: "YYYY-MM-DD"
     },
     hora:{
