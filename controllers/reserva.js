@@ -28,7 +28,7 @@ const crearReserva = async(req, res = response)=> {
     const horaRequest = req.body.hora;
     const uid = req.uid;
     
-
+    console.log('FECHA BACKEND ',fechaRequest)
     const existeCliente = clientes.find(cliente => cliente.dni === clienteRequest);  
     const existeCancha = configuracion.find(configuracion => configuracion.nombre === canchaRequest);
     const existeHorario = reservasRegistradas.find(reserva => {
