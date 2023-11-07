@@ -90,6 +90,9 @@ const crearReserva = async(req, res = response)=> {
      
         
         reserva.fechaCopia = fechaRequest;
+        reserva.title = canchaRequest;
+        reserva.start = fechaRequest;
+        reserva.end = fechaRequest;
 
         const guardarReserva = await reserva.save(); 
         return  res.status(201).json({

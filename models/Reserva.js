@@ -51,7 +51,6 @@ const ReservaSchema = Schema({
     fecha: {
       type: Date, 
       required: true,
-      format: "YYYY-MM-DD"
       },
 
     hora:{
@@ -78,6 +77,18 @@ const ReservaSchema = Schema({
       type: Schema.Types.String,
       ref: "Configuracion",
   }, 
+  title: {
+    type: String,
+  
+},
+start: {
+    type: Date,
+  
+},
+end: {
+    type: Date,
+  
+},
 });
 
 ReservaSchema.method('toJSON', function(){
