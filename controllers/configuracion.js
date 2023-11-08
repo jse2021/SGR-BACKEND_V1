@@ -61,11 +61,11 @@ const crearMontoCancha = async(req, res = response) => {
 }
 
 /**
- * TRAER TODAS LAS CONFIGURACIONES DE TODAS LAS CANCHAS
+ * TRAER TODAS LAS CONFIGURACIONES DE UNA CANCHA ESPECIFICA 
  */
 const getMontoCanchas = async(req, res = response) => {
-
-    const canchasMonto = await Configuracion.find();
+    const {nombre} = req.params;
+    const canchasMonto = await Configuracion.findOne({nombre});
     try {
         if(!canchasMonto){
             return res.status(400).json({
@@ -86,6 +86,8 @@ const getMontoCanchas = async(req, res = response) => {
         })
     }
 }
+
+
 
 /**
  * ACTUALIZAR LAS CANCHAS

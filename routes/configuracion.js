@@ -16,7 +16,7 @@ router.post('/crearMonto', [
 
 ],crearMontoCancha)
 
-router.get('/',getMontoCanchas)
+router.get('/:nombre',getMontoCanchas)
 router.put('/:nombre',[
     check('monto_cancha','el monto de la cancha es obligatorio').not().isEmpty(),
     check('monto_sena','el monto de la seña es obligatorio').not().isEmpty(),
