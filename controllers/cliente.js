@@ -83,7 +83,7 @@ const getCliente = async (req, res = response) => {
 
 
 /**
- * CONSULTA CLIENTE POR DNI
+ * CONSULTA CLIENTE POR APELLID
  */
 
 const getClientePorApellido = async(req, res = response) => {
