@@ -29,13 +29,13 @@ router.post('/',
  crearReserva);
 
  // Obtener Reservas
-
+ router.get('/:fechaCopia/:cancha', getReservaFechaCancha);
 router.get('/:fechaCopia/:cancha/:forma_pago/:estado_pago',recaudacionFormasDePago); 
 router.get('/:cancha/:fechaCopia',estadoRecaudacion);
 router.get('/:estado_pago/:fechaIni/:fechaFin',estadoReservasPorFecha);
 router.get('/',getReserva);
 router.get('/:fechaCopia',getReservaFecha);
-router.get('/:fechaCopia/:cancha', getReservaFechaCancha);
+
 router.get('/:apellidoCliente/:fechaIni/:fechaFin', getReservaClienteRango);
         
 // actualizar Reserva
