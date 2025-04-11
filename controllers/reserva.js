@@ -164,6 +164,55 @@ const getReservaFecha = async(req, res = response)=> {
     }
 }
 
+/**
+ * CONSULTAR HORAS DE LA CANCHA.
+ */
+const getCanchaHora = async(req, res = response)=> {
+    const {fechaCopia,cancha} = req.params;
+    const horaCancha = await Reserva.find({fechaCopia,cancha});
+    console.log({horaCancha});
+    
+    try {
+
+        if (horaCancha == "") {
+            return res.status(400).json({
+                ok: false,
+                msg:"No existen reservas asociadas a la fecha"
+            })
+        }
+          // Formatea los resultados de la consulta
+          const horarios = horaCancha.map((reserva) => {
+                
+            return {
+                hora: reserva.hora,
+            };
+        })
+    
+            return res.status(200).json({
+                ok: true, 
+                hora: horarios,
+                msg: "Traigo todas las reservas"
+            })     
+    } catch (error) {
+        console.log({error})
+        return res.status(500).json({
+            ok:false,
+            msg:"Consulte con el administrador"
+        })
+    }
+}
+// const reservasFormateadas = estadoReservas.map((reserva) => {
+//     if (estado_pago === "TOTAL") {               
+//     return {
+//         nombre: reserva.nombreCliente,
+//         apellido: reserva.apellidoCliente,
+//         fecha: reserva.fechaCopia,
+//         cancha: reserva.cancha,
+//         estado: reserva.estado_pago,
+//         monto_total: reserva.monto_cancha,
+//         // monto_sena: reserva.monto_sena
+//     };
+// }
 /*
 *CONSULTAR RESERVAS POR FECHA Y CANCHA
 */
@@ -676,7 +725,8 @@ module.exports = {
     eliminarReserva,
     estadoReservasPorFecha,
     estadoRecaudacion,
-    recaudacionFormasDePago
+    recaudacionFormasDePago,
+    getCanchaHora
 
 }
 
