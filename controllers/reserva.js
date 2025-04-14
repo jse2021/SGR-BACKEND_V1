@@ -95,6 +95,18 @@ const crearReserva = async(req, res = response)=> {
         reserva.end = fechaRequest;
 
         const guardarReserva = await reserva.save(); 
+
+        // // PASO PARA ENVIAR EMAIL
+        // // 1. busco correo del cliente asociado
+        // const clienteCorreo = await Usuario.findById(reserva.cliente.email);
+        // console.log(clienteCorreo);
+        // // 2. Enviás el correo
+        // await enviarEmailReserva(clienteCorreo.email, {
+        //     nombreCliente: clienteCorreo.nombre,
+        //     fecha: reserva.fecha,
+        //     hora: reserva.hora,
+        // });
+
         return  res.status(201).json({
               ok:true,
               msg: "Reserva registrada  exitosamente",       

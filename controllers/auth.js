@@ -25,7 +25,7 @@ const loginUsuario = async(req, res = response) => {
         if (!usuario) {
             return res.status(400).json({
                 ok: false,
-                msg: "El usuario no existe con el nombre de usuario",
+                msg: "No existe el usuario",
             })
         }
 
@@ -37,10 +37,10 @@ const loginUsuario = async(req, res = response) => {
                 msg:"Password incorrecto"
             });
         }
+        
         //GENERO JWT
         const token = await generarJWT(usuario.id, usuario.user);
         
-
         return res.json({
             ok:true,
             msg: "Accedo a calendario",
@@ -53,7 +53,7 @@ const loginUsuario = async(req, res = response) => {
         console.log({error})
         res.status(500).json({
             ok:false,
-            msg:"por favor hable con el administrador"
+            msg:"Por consulte al administrador"
         })
         
     }
