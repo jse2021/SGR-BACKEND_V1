@@ -5,6 +5,7 @@ const Cliente = require('../models/Cliente')
 const Usuario = require('../models/Usuario')
 const Cancha = require('../models/Cancha')
 const Configuracion = require('../models/configuracion')
+const { enviarCorreoReserva } = require('../helpers/mailer');
 
 
 
@@ -87,7 +88,6 @@ const crearReserva = async(req, res = response)=> {
         const clienteNombre = existeCliente.nombre;
         reserva.apellidoCliente = clienteApellido;
         reserva.nombreCliente = clienteNombre;
-     
         
         reserva.fechaCopia = fechaRequest;
         reserva.title = canchaRequest;
@@ -95,17 +95,14 @@ const crearReserva = async(req, res = response)=> {
         reserva.end = fechaRequest;
 
         const guardarReserva = await reserva.save(); 
-
-        // // PASO PARA ENVIAR EMAIL
-        // // 1. busco correo del cliente asociado
-        // const clienteCorreo = await Usuario.findById(reserva.cliente.email);
-        // console.log(clienteCorreo);
-        // // 2. Enviás el correo
-        // await enviarEmailReserva(clienteCorreo.email, {
-        //     nombreCliente: clienteCorreo.nombre,
-        //     fecha: reserva.fecha,
-        //     hora: reserva.hora,
-        // });
+        
+        // Envía el correo de registro
+        const emailCliente = existeCliente.email;
+        await enviarCorreoReserva(emailCliente, {
+            fecha: reserva.fecha,
+            hora: reserva.hora,
+            nombre: reserva.nombreCliente+' '+reserva.apellidoCliente
+        });
 
         return  res.status(201).json({
               ok:true,
