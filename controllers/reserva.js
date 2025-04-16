@@ -99,9 +99,13 @@ const crearReserva = async(req, res = response)=> {
         // Envía el correo de registro
         const emailCliente = existeCliente.email;
         await enviarCorreoReserva(emailCliente, {
-            fecha: reserva.fecha,
+            cancha:reserva.cancha,
+            fecha: reserva.fechaCopia,
             hora: reserva.hora,
-            nombre: reserva.nombreCliente+' '+reserva.apellidoCliente
+            nombre: reserva.nombreCliente+' '+reserva.apellidoCliente,
+            estado: reserva.estado_pago,
+            observacion: reserva.observacion
+
         });
 
         return  res.status(201).json({
