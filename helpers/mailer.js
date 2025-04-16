@@ -24,7 +24,7 @@ const enviarCorreoReserva = async (destinatario, datosReserva) => {
         <li><strong>Estado de Pago:</strong> ${datosReserva.estado}</li>
         <li><strong>Observaciones:</strong> ${datosReserva.observacion}</li>
       </ul>
-      
+       <p>Número de Telefono: +54 9 2964473552</p>
       <p>Gracias por usar nuestro sistema.</p>
     `
   };

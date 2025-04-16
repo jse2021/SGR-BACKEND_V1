@@ -8,125 +8,230 @@ const Configuracion = require('../models/configuracion')
 const { enviarCorreoReserva } = require('../helpers/mailer');
 
 
-
-
-
 /**
  * CREAR RESERVAS
+ * Trabajando en la nueva implementacion para que el front levante las horas disponibles. Por ahora el backend funciona
+ * Hay que esperar hasta que toque trabajar el front end 
  */
-const crearReserva = async(req, res = response)=> {
-
-    const reserva = new Reserva(req.body);   
-  
-    const configuracion = await Configuracion.find();
-
-    const clientes = await Cliente.find();  
-    const reservasRegistradas = await Reserva.find();
-    const clienteRequest = req.body.cliente;     
-    const canchaRequest = req.body.cancha;
-    const estadoPagoRequest = req.body.estado_pago;
-    const fechaRequest = req.body.fecha; //2023-11-12
-    const horaRequest = req.body.hora;
-    const uid = req.uid;
-    
-    console.log('FECHA BACKEND ',fechaRequest)
-    const existeCliente = clientes.find(cliente => cliente.dni === clienteRequest);  
-    const existeCancha = configuracion.find(configuracion => configuracion.nombre === canchaRequest);
-    const existeHorario = reservasRegistradas.find(reserva => {
-        return (
-            reserva.fechaCopia === fechaRequest &&//2023-11-12
-            reserva.hora === horaRequest &&
-            reserva.cancha === canchaRequest
-        )
-    })
-    console.log({existeHorario});
-    
+const crearReserva = async (req, res = response) => {
     try {
+        const reserva = new Reserva(req.body);   
 
-        if (existeHorario) {
-            return  res.status(400).json({
-                ok:false,
-                msg: "La fecha, hora y cancha tiene horarios registrado",       
-            })   
-        }
-        if (!existeHorario) {          
-               
-        if (!existeCancha) {
-            return res.status(400).json({
-                ok: false, 
-                msg: "No existe cancha",
-            })  
-        }
+        const [configuracion, clientes, reservasRegistradas] = await Promise.all([
+            Configuracion.find(),
+            Cliente.find(),
+            Reserva.find()
+        ]);
+
+        const { cliente: clienteRequest, cancha: canchaRequest, estado_pago: estadoPagoRequest, fecha: fechaRequest, hora: horaRequest } = req.body;
+        const uid = req.uid;
+
+        console.log('FECHA BACKEND ', fechaRequest);
+
+        const existeCliente = clientes.find(c => c.dni === clienteRequest);  
+        const existeCancha = configuracion.find(c => c.nombre === canchaRequest);
 
         if (!existeCliente) {
-           return res.status(400).json({
-                ok: false, 
-                msg: "No existe cliente",
-            }) 
+            return res.status(400).json({ ok: false, msg: "No existe cliente" });
         }
 
+        if (!existeCancha) {
+            return res.status(400).json({ ok: false, msg: "No existe cancha" });
+        }
+
+        // 🟨 NUEVO: Obtener reservas del día y cancha
+        const reservasDelDia = reservasRegistradas.filter(r =>
+            r.fechaCopia === fechaRequest &&
+            r.cancha === canchaRequest
+        );
+
+        // 🟨 NUEVO: Horas ocupadas y disponibles
+        const horasOcupadas = reservasDelDia.map(r => r.hora);
+
+        const todasLasHoras = [
+            "00:00","01:00", "08:00", "09:00", "10:00", "11:00",
+            "12:00", "13:00", "14:00", "15:00","16:00", "17:00",
+            "18:00", "19:00","20:00", "21:00", "22:00","23:00"
+        ];
+
+        const horasDisponibles = todasLasHoras.filter(h => !horasOcupadas.includes(h));
+
+        // 🟨 NUEVO: Verificar si la hora está disponible
+        if (!horasDisponibles.includes(horaRequest)) {
+            console.log("horas disponibles",horasDisponibles);
+            return res.status(400).json({
+                ok: false,
+                msg: "La hora seleccionada ya está reservada",
+                horasDisponibles // 🟨 Se devuelve como sugerencia
+            });
+        }
+
+        // Asignación de montos según estado de pago
         if (estadoPagoRequest === "TOTAL") {
             reserva.monto_cancha = existeCancha.monto_cancha;
             reserva.monto_sena = 0.00;
-        }else if (estadoPagoRequest === "SEÑA") {
+        } else if (estadoPagoRequest === "SEÑA") {
             reserva.monto_cancha = 0.00;
             reserva.monto_sena = existeCancha.monto_sena;
-        }else if (estadoPagoRequest === "IMPAGO") {
+        } else {
             reserva.monto_cancha = 0.00;
             reserva.monto_sena = 0.00;
         }
-        
-        /**
-         * asociar a la reserva, el usuario creador
-         */
-        const user = await Usuario.findOne({id:uid});
-        const username = user.user;
-        reserva.user = username;
 
-        // Asocio a la reserva el cliente solicitador
-        const clienteApellido = existeCliente.apellido;
-        const clienteNombre = existeCliente.nombre;
-        reserva.apellidoCliente = clienteApellido;
-        reserva.nombreCliente = clienteNombre;
-        
+        const user = await Usuario.findOne({ id: uid });
+        reserva.user = user?.user;
+
+        reserva.nombreCliente = existeCliente.nombre;
+        reserva.apellidoCliente = existeCliente.apellido;
+
         reserva.fechaCopia = fechaRequest;
         reserva.title = canchaRequest;
         reserva.start = fechaRequest;
         reserva.end = fechaRequest;
 
-        const guardarReserva = await reserva.save(); 
-        
-        // Envía el correo de registro
-        const emailCliente = existeCliente.email;
-        await enviarCorreoReserva(emailCliente, {
-            cancha:reserva.cancha,
-            fecha: reserva.fechaCopia,
+        const guardarReserva = await reserva.save();
+
+        const fechaFormateada = new Date(reserva.fechaCopia).toLocaleDateString('es-AR');
+        await enviarCorreoReserva(existeCliente.email, {
+            cancha: reserva.cancha,
+            fecha: fechaFormateada,
             hora: reserva.hora,
-            nombre: reserva.nombreCliente+' '+reserva.apellidoCliente,
+            nombre: `${reserva.nombreCliente} ${reserva.apellidoCliente}`,
             estado: reserva.estado_pago,
             observacion: reserva.observacion
-
         });
 
-        return  res.status(201).json({
-              ok:true,
-              msg: "Reserva registrada  exitosamente",       
-              reserva: guardarReserva,
-          })
-        }
-         
-    } catch (error) { 
-        console.log({error})
-            return  res.status(500).json({
-            ok:false,
-            msg:"Consulte con el administrador"
-        })
-    }       
-}
+        return res.status(201).json({
+            ok: true,
+            msg: "Reserva registrada exitosamente",
+            reserva: guardarReserva
+        });
 
-/**
- * CONSULTAR TODAS LAS RESERVAS DEL SISTEMA
- */
+    } catch (error) {
+        console.error({ error });
+        return res.status(500).json({
+            ok: false,
+            msg: "Consulte con el administrador"
+        });
+    }
+};
+
+
+// const crearReserva = async(req, res = response)=> {
+
+//     const reserva = new Reserva(req.body);   
+  
+//     const configuracion = await Configuracion.find();
+
+//     const clientes = await Cliente.find();  
+//     const reservasRegistradas = await Reserva.find();
+//     const clienteRequest = req.body.cliente;     
+//     const canchaRequest = req.body.cancha;
+//     const estadoPagoRequest = req.body.estado_pago;
+//     const fechaRequest = req.body.fecha; //2023-11-12
+//     const horaRequest = req.body.hora;
+//     const uid = req.uid;
+    
+//     console.log('FECHA BACKEND ',fechaRequest)
+
+//     const existeCliente = clientes.find(cliente => cliente.dni === clienteRequest);  
+//     const existeCancha = configuracion.find(configuracion => configuracion.nombre === canchaRequest);
+//     const existeHorario = reservasRegistradas.find(reserva => {
+//         return (
+//             reserva.fechaCopia === fechaRequest &&//2023-11-12
+//             reserva.hora === horaRequest &&
+//             reserva.cancha === canchaRequest
+//         )
+//     })
+//     console.log({existeHorario});
+    
+//     try {
+
+//         if (existeHorario) {
+//             return  res.status(400).json({
+//                 ok:false,
+//                 msg: "La fecha, hora y cancha tiene horarios registrado",       
+//             })   
+//         }
+//         if (!existeHorario) {          
+               
+//         if (!existeCancha) {
+//             return res.status(400).json({
+//                 ok: false, 
+//                 msg: "No existe cancha",
+//             })  
+//         }
+
+//         if (!existeCliente) {
+//            return res.status(400).json({
+//                 ok: false, 
+//                 msg: "No existe cliente",
+//             }) 
+//         }
+
+//         if (estadoPagoRequest === "TOTAL") {
+//             reserva.monto_cancha = existeCancha.monto_cancha;
+//             reserva.monto_sena = 0.00;
+//         }else if (estadoPagoRequest === "SEÑA") {
+//             reserva.monto_cancha = 0.00;
+//             reserva.monto_sena = existeCancha.monto_sena;
+//         }else if (estadoPagoRequest === "IMPAGO") {
+//             reserva.monto_cancha = 0.00;
+//             reserva.monto_sena = 0.00;
+//         }
+        
+//         /**
+//          * asociar a la reserva, el usuario creador
+//          */
+//         const user = await Usuario.findOne({id:uid});
+//         const username = user.user;
+//         reserva.user = username;
+
+//         // Asocio a la reserva el cliente solicitador
+//         const clienteApellido = existeCliente.apellido;
+//         const clienteNombre = existeCliente.nombre;
+//         reserva.apellidoCliente = clienteApellido;
+//         reserva.nombreCliente = clienteNombre;
+        
+//         reserva.fechaCopia = fechaRequest;
+//         reserva.title = canchaRequest;
+//         reserva.start = fechaRequest;
+//         reserva.end = fechaRequest;
+//         const guardarReserva = await reserva.save(); 
+         
+//         // Envía el correo de registro
+//           const emailCliente = existeCliente.email;
+//         // Formatear fecha al estilo "05/04/2025" para correo
+//          const fechaFormateada = new Date(reserva.fechaCopia).toLocaleDateString('es-AR');
+//         await enviarCorreoReserva(emailCliente, {
+//             cancha:reserva.cancha,
+//             fecha: fechaFormateada,
+//             hora: reserva.hora,
+//             nombre: reserva.nombreCliente+' '+reserva.apellidoCliente,
+//             estado: reserva.estado_pago,
+//             observacion: reserva.observacion
+
+//         });
+
+//         return  res.status(201).json({
+//               ok:true,
+//               msg: "Reserva registrada  exitosamente",       
+//               reserva: guardarReserva,
+//           })
+//         }
+         
+//     } catch (error) { 
+//         console.log({error})
+//             return  res.status(500).json({
+//             ok:false,
+//             msg:"Consulte con el administrador"
+//         })
+//     }       
+// }
+
+// /**
+//  * CONSULTAR TODAS LAS RESERVAS DEL SISTEMA
+//  */
 
 const getReserva =async (req, res = response)=> {
 
@@ -726,8 +831,6 @@ const recaudacionFormasDePago = async (req, res = response) => {
     }
 }
 
-
-
 module.exports = {
     getReserva,
     getReservaFecha,
@@ -739,7 +842,6 @@ module.exports = {
     estadoReservasPorFecha,
     estadoRecaudacion,
     recaudacionFormasDePago,
-    getCanchaHora
-
+    getCanchaHora,
 }
 
