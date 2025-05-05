@@ -40,31 +40,14 @@ const crearReserva = async (req, res = response) => {
         }
 
         // 🟨 NUEVO: Obtener reservas del día y cancha
+        // const reservasDelDia = reservasRegistradas.filter(r =>
+        //     r.fechaCopia === fechaRequest &&
+        //     r.cancha === canchaRequest
+        // );
         const reservasDelDia = reservasRegistradas.filter(r =>
-            r.fechaCopia === fechaRequest &&
+            new Date(r.fechaCopia).toISOString().slice(0, 10) === new Date(fechaRequest).toISOString().slice(0, 10) &&
             r.cancha === canchaRequest
         );
-
-        // 🟨 NUEVO: Horas ocupadas y disponibles
-        const horasOcupadas = reservasDelDia.map(r => r.hora);
-
-        const todasLasHoras = [
-            "00:00","01:00", "08:00", "09:00", "10:00", "11:00",
-            "12:00", "13:00", "14:00", "15:00","16:00", "17:00",
-            "18:00", "19:00","20:00", "21:00", "22:00","23:00"
-        ];
-
-        const horasDisponibles = todasLasHoras.filter(h => !horasOcupadas.includes(h));
-
-        // 🟨 NUEVO: Verificar si la hora está disponible
-        if (!horasDisponibles.includes(horaRequest)) {
-            console.log("horas disponibles",horasDisponibles);
-            return res.status(400).json({
-                ok: false,
-                msg: "La hora seleccionada ya está reservada",
-                horasDisponibles // 🟨 Se devuelve como sugerencia
-            });
-        }
 
         // Asignación de montos según estado de pago
         if (estadoPagoRequest === "TOTAL") {
@@ -112,6 +95,45 @@ const crearReserva = async (req, res = response) => {
         return res.status(500).json({
             ok: false,
             msg: "Consulte con el administrador"
+        });
+    }
+};
+
+// para consultar segun fecha, los horarios disponibles de cancha indicada
+const obtenerHorasDisponibles = async (req, res = response) => {
+    try {
+        const { fecha, cancha } = req.body;
+
+        if (!fecha || !cancha) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'Faltan datos: fecha y/o cancha'
+            });
+        }
+
+        const reservasRegistradas = await Reserva.find({ fechaCopia: fecha, cancha });
+        const horasOcupadas = reservasRegistradas.map(r => r.hora);
+        
+
+        const todasLasHoras = [
+            "08:00", "09:00", "10:00", "11:00",
+            "12:00", "13:00", "14:00", "15:00",
+            "16:00", "17:00", "18:00", "19:00",
+            "20:00", "21:00", "22:00", "23:00"
+        ];
+
+        const horasDisponibles = todasLasHoras.filter(h => !horasOcupadas.includes(h));
+
+        return res.json({
+            ok: true,
+            horasDisponibles
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            ok: false,
+            msg: 'Error interno del servidor'
         });
     }
 };
@@ -420,6 +442,7 @@ const actualizarReserva = async (req, res = response)=> {
                 })
             } 
             const reserva = await Reserva.findById(reservaId)
+            console.log(reserva)
                 if (!reserva) {
                     return  res.status(400).json({
                         ok: false,
@@ -843,5 +866,6 @@ module.exports = {
     estadoRecaudacion,
     recaudacionFormasDePago,
     getCanchaHora,
+    obtenerHorasDisponibles
 }
 

@@ -5,7 +5,7 @@
 const {Router} = require('express')
 const {validarJWT} = require('../middlewares/validar-jwt')
 const {getReserva, crearReserva, getReservaFecha, getReservaFechaCancha, getReservaClienteRango, 
-    actualizarReserva, eliminarReserva,estadoReservasPorFecha, estadoRecaudacion, recaudacionFormasDePago,getCanchaHora} = require('../controllers/reserva')
+    actualizarReserva, eliminarReserva,estadoReservasPorFecha, estadoRecaudacion, recaudacionFormasDePago,getCanchaHora,obtenerHorasDisponibles} = require('../controllers/reserva')
 const router = Router();
 const {check} = require('express-validator')
 const {validarCampos} = require('../middlewares/validar-campos')
@@ -27,6 +27,10 @@ router.post('/',
     validarCampos
 ],
  crearReserva);
+
+ //vincular para consultar cancha y horarios disponibles segun dia elegido
+ router.get('/horarios-disponibles', validarJWT,obtenerHorasDisponibles);
+
 
  // Obtener Reservas
  router.get('/:fechaCopia/:cancha',getCanchaHora);
