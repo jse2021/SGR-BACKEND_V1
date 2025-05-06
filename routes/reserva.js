@@ -29,7 +29,7 @@ router.post('/',
  crearReserva);
 
  //vincular para consultar cancha y horarios disponibles segun dia elegido
- router.get('/horarios-disponibles', validarJWT,obtenerHorasDisponibles);
+ router.post('/horarios-disponibles', validarJWT,obtenerHorasDisponibles);
 
 
  // Obtener Reservas
