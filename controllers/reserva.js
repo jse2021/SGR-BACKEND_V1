@@ -49,17 +49,21 @@ const crearReserva = async (req, res = response) => {
             r.cancha === canchaRequest
         );
 
-        // Asignación de montos según estado de pago
-        if (estadoPagoRequest === "TOTAL") {
-            reserva.monto_cancha = existeCancha.monto_cancha;
-            reserva.monto_sena = 0.00;
-        } else if (estadoPagoRequest === "SEÑA") {
-            reserva.monto_cancha = 0.00;
-            reserva.monto_sena = existeCancha.monto_sena;
-        } else {
-            reserva.monto_cancha = 0.00;
-            reserva.monto_sena = 0.00;
-        }
+        // // Asignación de montos según estado de pago
+        // if (estadoPagoRequest === "TOTAL") {
+        //     reserva.monto_cancha = existeCancha.monto_cancha;
+        //     reserva.monto_sena = 0.00;
+        // } else if (estadoPagoRequest === "SEÑA") {
+        //     reserva.monto_cancha = 0.00;
+        //     reserva.monto_sena = existeCancha.monto_sena;
+        // } else {
+        //     reserva.monto_cancha = 0.00;
+        //     reserva.monto_sena = 0.00;
+        // }
+        // const montos = calcularMontos(estadoPagoRequest, existeCancha);
+        //     reserva.monto_cancha = montos.monto_cancha;
+        //     reserva.monto_sena = montos.monto_sena;
+
 
         const user = await Usuario.findOne({ id: uid });
         reserva.user = user?.user;
@@ -74,6 +78,7 @@ const crearReserva = async (req, res = response) => {
 
         const guardarReserva = await reserva.save();
 
+        //envio correo electrónico una vez registrada la reserva
         const fechaFormateada = new Date(reserva.fechaCopia).toLocaleDateString('es-AR');
         await enviarCorreoReserva(existeCliente.email, {
             cancha: reserva.cancha,
@@ -137,6 +142,82 @@ const obtenerHorasDisponibles = async (req, res = response) => {
         });
     }
 };
+
+const obtenerMontoPorEstado = async (req, res = response) => {
+    const { cancha, estado_pago } = req.body;
+
+    try {
+        const configuracion = await Configuracion.findOne({ nombre: cancha });
+
+        if (!configuracion) {
+            return res.status(404).json({ ok: false, msg: 'Cancha no encontrada' });
+        }
+
+        let monto = 0;
+
+        if (estado_pago === 'TOTAL') {
+            monto = configuracion.monto_cancha;
+        } else if (estado_pago === 'SEÑA') {
+            monto = configuracion.monto_sena;
+        } else {
+            monto = 0;
+        }
+
+        return res.json({ ok: true, monto });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ ok: false, msg: 'Error interno' });
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+// // Asignación de montos según estado de pago
+// const calcularMontos = (estadoPago, canchaConfig) => {
+//     if (estadoPago === "TOTAL") {
+//         return {
+//             monto_cancha: canchaConfig.monto_cancha,
+//             monto_sena: 0.00
+//         };
+//     } else if (estadoPago === "SEÑA") {
+//         return {
+//             monto_cancha: 0.00,
+//             monto_sena: canchaConfig.monto_sena
+//         };
+//     } else {
+//         return {
+//             monto_cancha: 0.00,
+//             monto_sena: 0.00
+//         };
+//     }
+// };
+// /*
+// * FUNCION MOSTRAR MONTOS: LO USO PARA EL ENDPOINT
+// */
+// const obtenerMontos = async (req, res = response) => {
+//     const { estadoPago, cancha } = req.body;
+
+//     const configuracion = await Configuracion.findOne({ nombre: cancha });
+//     if (!configuracion) {
+//         return res.status(404).json({ ok: false, msg: 'Cancha no encontrada' });
+//     }
+
+//     const montos = calcularMontos(estadoPago, configuracion);
+
+//     return res.json({ ok: true, ...montos });
+// };
+
+
+
 
 
 // const crearReserva = async(req, res = response)=> {
@@ -866,6 +947,7 @@ module.exports = {
     estadoRecaudacion,
     recaudacionFormasDePago,
     getCanchaHora,
-    obtenerHorasDisponibles
+    obtenerHorasDisponibles,
+    obtenerMontoPorEstado
 }
 
