@@ -12,7 +12,7 @@ const {validarCampos} = require('../middlewares/validar-campos')
 const {isDate} = require('../helpers/isDate')
 
 
-// Todas las peticiones tinene que pasar por el validarJWT
+// Todas las peticiones tinen que pasar por el validarJWT
 router.use(validarJWT);
 
 // Crear una reserva
@@ -34,10 +34,7 @@ router.post('/',
  //obtener montos segun estado de pago seleccionado
 router.post('/obtener-monto', obtenerMontoPorEstado);
 
-
-
-
- // Obtener Reservas
+// Obtener Reservas
  router.get('/:fechaCopia/:cancha',getCanchaHora);
  router.get('/:fechaCopia/:cancha', getReservaFechaCancha);
 router.get('/:fechaCopia/:cancha/:forma_pago/:estado_pago',recaudacionFormasDePago); 

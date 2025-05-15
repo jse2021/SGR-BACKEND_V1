@@ -5,7 +5,7 @@ const express = require('express')
 const router = express.Router();
 const {validationResult, check} =  require('express-validator')
 const {validarCampos} = require('../middlewares/validar-campos')
-const {crearMontoCancha,getMontoCanchas, actualizarMontoCancha} = require('../controllers/configuracion')
+const {crearMontoCancha,getMontoCanchas, actualizarMontoCancha,getCanchasPrecio} = require('../controllers/configuracion')
 
 
 router.post('/crearMonto', [
@@ -16,7 +16,8 @@ router.post('/crearMonto', [
 
 ],crearMontoCancha)
 
-router.get('/:nombre',getMontoCanchas)
+router.get('/:nombre',getMontoCanchas),
+router.get('/',getCanchasPrecio)
 router.put('/:nombre',[
     check('monto_cancha','el monto de la cancha es obligatorio').not().isEmpty(),
     check('monto_sena','el monto de la seña es obligatorio').not().isEmpty(),

@@ -87,6 +87,41 @@ const getMontoCanchas = async(req, res = response) => {
     }
 }
 
+/**
+ * TRAER TODAS LAS CANCHAS CON PRECIOS
+ */
+const getCanchasPrecio = async(req, res = response) => {
+    
+    const canchasPrecio = await Configuracion.find();
+    console.log(canchasPrecio)
+
+    try {
+        if(!canchasPrecio){
+            return res.status(400).json({
+                ok: false,
+                msg:"No existen configuraciones"
+            })
+        }
+        return res.json({
+            ok: true,
+            canchasPrecio: canchasPrecio.map((cancha) => ({
+                id: cancha.id,
+                nombre: cancha.nombre,
+                precio_cancha: cancha.monto_cancha,
+                precio_sena: cancha.monto_sena
+
+            })),
+            msg: "Listado de configuraciones"
+        })
+    } catch (error) {
+        console.log({error})
+        res.status(500).json({
+            ok:false,
+            msg:"Consulte con el administrador"
+        })
+    }
+}
+
 
 
 /**
@@ -127,7 +162,8 @@ const actualizarMontoCancha = async(req, res = response)  => {
 module.exports = {
     crearMontoCancha,
     getMontoCanchas,
-    actualizarMontoCancha
+    actualizarMontoCancha,
+    getCanchasPrecio
 }
 
 
