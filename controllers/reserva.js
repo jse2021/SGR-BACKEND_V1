@@ -33,8 +33,6 @@ const crearReserva = async (req, res = response) => {
     } = req.body;
     const uid = req.uid;
 
-    console.log("FECHA BACKEND ", fechaRequest);
-
     const existeCliente = clientes.find((c) => c.dni === clienteRequest);
     const existeCancha = configuracion.find((c) => c.nombre === canchaRequest);
 
@@ -65,6 +63,7 @@ const crearReserva = async (req, res = response) => {
     reserva.end = fechaRequest;
 
     const guardarReserva = await reserva.save();
+    console.log(guardarReserva);
 
     //envio correo electrónico una vez registrada la reserva
     const fechaFormateada = new Date(reserva.fechaCopia).toLocaleDateString(
@@ -306,7 +305,7 @@ const getReservaFechaCancha = async (req, res = response) => {
  * 14/05 - PROXIMA IMPLEMENTACION: VER SI PODEMOS CONSULTAR POR NOMBRE, O APELLIDO DEL CLIENTE
  */
 const getReservaClienteRango = async (req, res = response) => {
-  const { apellidoCliente, fechaIni, fechaFin } = req.params;
+  const { cliente, fechaIni, fechaFin } = req.params;
 
   try {
     const rangoFechas = {
@@ -316,9 +315,10 @@ const getReservaClienteRango = async (req, res = response) => {
 
     // Obtiene las reservas del cliente especificado en el rango de fechas especificado
     const reservasCliente = await Reserva.find({
-      apellidoCliente,
+      cliente,
       fecha: rangoFechas,
     });
+    console.log(reservasCliente);
 
     if (reservasCliente == "") {
       return res.status(400).json({
@@ -372,6 +372,8 @@ const actualizarReserva = async (req, res = response) => {
       nuevaReserva,
       { new: true }
     );
+    console.log(reservaActualizada);
+
     //Buscar al cliente por ID (que está en reservaActualizada.cliente)
     const cliente = await Cliente.findOne({ dni: reservaActualizada.cliente });
     if (!cliente) {
@@ -408,6 +410,9 @@ const actualizarReserva = async (req, res = response) => {
   }
 };
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------
+/**
+ * ELIMINAR RESERVAS - ENVIO DE CORREO
+ */
 const eliminarReserva = async (req, res = response) => {
   const reservaId = req.params.id;
   try {
@@ -433,7 +438,6 @@ const eliminarReserva = async (req, res = response) => {
       : "Fecha no disponible";
 
     await enviarCorreoReservaEliminada(email, {
-      // cancha: reservaActualizada.cancha,
       fecha: fechaFormateada,
       hora: reserva.hora,
       nombre: `${reserva.nombreCliente} ${reserva.apellidoCliente}`,
@@ -459,86 +463,86 @@ const eliminarReserva = async (req, res = response) => {
 /**
  * REPORTE: CONSULTAR EL ESTADO DE LAS RESERVAS FILTRADO POR ESTADO DE PAGO Y RANGO DE FECHAS
  */
-const estadoReservasPorFecha = async (req, res = response) => {
-  const { estado_pago, fechaIni, fechaFin } = req.params;
+// const estadoReservasPorFecha = async (req, res = response) => {
+//   const { estado_pago, fechaIni, fechaFin } = req.params;
 
-  // Valida los parámetros de entrada
-  if (!fechaIni || !fechaFin) {
-    return res.status(400).json({
-      ok: false,
-      msg: "Debe especificar las fechas de inicio y fin",
-    });
-  }
-  try {
-    const rangoFechas = {
-      $gte: new Date(fechaIni),
-      $lte: new Date(fechaFin),
-    };
+//   // Valida los parámetros de entrada
+//   if (!fechaIni || !fechaFin) {
+//     return res.status(400).json({
+//       ok: false,
+//       msg: "Debe especificar las fechas de inicio y fin",
+//     });
+//   }
+//   try {
+//     const rangoFechas = {
+//       $gte: new Date(fechaIni),
+//       $lte: new Date(fechaFin),
+//     };
 
-    // Obtiene las reservas en el rango de fechas especificado
-    const estadoReservas = await Reserva.find({
-      estado_pago,
-      fecha: rangoFechas,
-    });
+//     // Obtiene las reservas en el rango de fechas especificado
+//     const estadoReservas = await Reserva.find({
+//       estado_pago,
+//       fecha: rangoFechas,
+//     });
 
-    // Formatea los resultados de la consulta
-    const reservasFormateadas = estadoReservas.map((reserva) => {
-      if (estado_pago === "TOTAL") {
-        return {
-          nombre: reserva.nombreCliente,
-          apellido: reserva.apellidoCliente,
-          fecha: reserva.fechaCopia,
-          cancha: reserva.cancha,
-          estado: reserva.estado_pago,
-          monto_total: reserva.monto_cancha,
-          // monto_sena: reserva.monto_sena
-        };
-      }
-      if (estado_pago === "SEÑA") {
-        return {
-          nombre: reserva.nombreCliente,
-          apellido: reserva.apellidoCliente,
-          fecha: reserva.fechaCopia,
-          cancha: reserva.cancha,
-          estado: reserva.estado_pago,
-          // monto_total: reserva.monto_cancha,
-          monto_sena: reserva.monto_sena,
-        };
-      }
-      if (estado_pago === "IMPAGO") {
-        return {
-          nombre: reserva.nombreCliente,
-          apellido: reserva.apellidoCliente,
-          fecha: reserva.fechaCopia,
-          cancha: reserva.cancha,
-          estado: reserva.estado_pago,
-          // monto_total: reserva.monto_cancha,
-          // monto_sena: reserva.monto_sena
-        };
-      }
-    });
+//     // Formatea los resultados de la consulta
+//     const reservasFormateadas = estadoReservas.map((reserva) => {
+//       if (estado_pago === "TOTAL") {
+//         return {
+//           nombre: reserva.nombreCliente,
+//           apellido: reserva.apellidoCliente,
+//           fecha: reserva.fechaCopia,
+//           cancha: reserva.cancha,
+//           estado: reserva.estado_pago,
+//           monto_total: reserva.monto_cancha,
+//           // monto_sena: reserva.monto_sena
+//         };
+//       }
+//       if (estado_pago === "SEÑA") {
+//         return {
+//           nombre: reserva.nombreCliente,
+//           apellido: reserva.apellidoCliente,
+//           fecha: reserva.fechaCopia,
+//           cancha: reserva.cancha,
+//           estado: reserva.estado_pago,
+//           // monto_total: reserva.monto_cancha,
+//           monto_sena: reserva.monto_sena,
+//         };
+//       }
+//       if (estado_pago === "IMPAGO") {
+//         return {
+//           nombre: reserva.nombreCliente,
+//           apellido: reserva.apellidoCliente,
+//           fecha: reserva.fechaCopia,
+//           cancha: reserva.cancha,
+//           estado: reserva.estado_pago,
+//           // monto_total: reserva.monto_cancha,
+//           // monto_sena: reserva.monto_sena
+//         };
+//       }
+//     });
 
-    // Valida si se encontraron reservas
-    if (!reservasFormateadas.length) {
-      return res.status(404).json({
-        ok: false,
-        msg: "No se encontraron reservas en el rango de fechas especificado",
-      });
-    }
+//     // Valida si se encontraron reservas
+//     if (!reservasFormateadas.length) {
+//       return res.status(404).json({
+//         ok: false,
+//         msg: "No se encontraron reservas en el rango de fechas especificado",
+//       });
+//     }
 
-    return res.status(200).json({
-      ok: true,
-      reservasFormateadas,
-      msg: "Estado de las reservas",
-    });
-  } catch (error) {
-    console.log({ error });
-    return res.status(500).json({
-      ok: false,
-      msg: "Consulte con el administrador",
-    });
-  }
-};
+//     return res.status(200).json({
+//       ok: true,
+//       reservasFormateadas,
+//       msg: "Estado de las reservas",
+//     });
+//   } catch (error) {
+//     console.log({ error });
+//     return res.status(500).json({
+//       ok: false,
+//       msg: "Consulte con el administrador",
+//     });
+//   }
+// };
 
 /**
  * REPORTE: RECAUDACION, FILTRO POR FECHA Y CANCHA- CALCULAR MONTO TOTAL DEL CONSOLIDADO - CALCULAR MONTO DEUDA
@@ -822,7 +826,7 @@ module.exports = {
   crearReserva,
   actualizarReserva,
   eliminarReserva,
-  estadoReservasPorFecha,
+  // estadoReservasPorFecha,
   estadoRecaudacion,
   recaudacionFormasDePago,
   getCanchaHora,
