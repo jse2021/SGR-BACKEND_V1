@@ -46,7 +46,7 @@ router.post(
 router.post("/horarios-disponibles", validarJWT, obtenerHorasDisponibles);
 
 //obtener montos segun estado de pago seleccionado
-router.post("/obtener-monto", obtenerMontoPorEstado);
+router.post("/obtener-monto", validarJWT, obtenerMontoPorEstado);
 
 // Obtener Reservas
 router.get("/:fechaCopia/:cancha", getCanchaHora);

@@ -1,4 +1,5 @@
 const { response } = require("express");
+const axios = require("axios");
 const { body } = require("express-validator");
 const Reserva = require("../models/Reserva");
 const Cliente = require("../models/Cliente");
@@ -50,6 +51,32 @@ const crearReserva = async (req, res = response) => {
           new Date(fechaRequest).toISOString().slice(0, 10) &&
         r.cancha === canchaRequest
     );
+    const token = req.header("x-token"); // Asegurate que venga desde el frontend
+
+    // LLAMADO INTERNO AL ENDPOINT obtenerMontoPorEstado
+    const { data } = await axios.post(
+      "http://localhost:4000/api/reserva/obtener-monto",
+      {
+        cancha: canchaRequest,
+        estado_pago: estadoPagoRequest,
+      },
+      {
+        headers: {
+          "x-token": token, // pasás el mismo token que se usó para autenticar la petición original
+        },
+      }
+    );
+    console.log(data);
+    if (!data.ok) {
+      return res
+        .status(400)
+        .json({ ok: false, msg: "Error al obtener el monto" });
+    }
+    const monto = data.monto;
+
+    // Asignar automáticamente según estado
+    reserva.monto_cancha = estadoPagoRequest === "TOTAL" ? monto : 0;
+    reserva.monto_sena = estadoPagoRequest === "SEÑA" ? monto : 0;
 
     const user = await Usuario.findOne({ id: uid });
     reserva.user = user?.user;
@@ -63,7 +90,6 @@ const crearReserva = async (req, res = response) => {
     reserva.end = fechaRequest;
 
     const guardarReserva = await reserva.save();
-    console.log(guardarReserva);
 
     //envio correo electrónico una vez registrada la reserva
     const fechaFormateada = new Date(reserva.fechaCopia).toLocaleDateString(
@@ -318,7 +344,6 @@ const getReservaClienteRango = async (req, res = response) => {
       cliente,
       fecha: rangoFechas,
     });
-    console.log(reservasCliente);
 
     if (reservasCliente == "") {
       return res.status(400).json({
@@ -347,6 +372,8 @@ const actualizarReserva = async (req, res = response) => {
   const reservaId = req.params.id;
   const fecha_copia = req.body.fecha_copia;
 
+  console.log("Paso por actualizar: ", req.body);
+
   try {
     if (fecha_copia) {
       return res.status(400).json({
@@ -365,14 +392,81 @@ const actualizarReserva = async (req, res = response) => {
     const nuevaReserva = {
       ...req.body,
     };
+    //Con este if, soluciono el error de que no actualizaba el monto total de la cancha
+    //al no setear nuevamente la cancha
+    if (!nuevaReserva.cancha) {
+      nuevaReserva.cancha = reserva.cancha;
+    }
+    const { estado_pago, cancha } = nuevaReserva;
+
+    console.log("Antes del if: ", nuevaReserva.cancha);
+
+    // Si cambia el estado_pago o la cancha, consultar nuevo monto
+    if (estado_pago && cancha) {
+      try {
+        console.log("Entro al if");
+        const token = req.header("x-token");
+        const resp = await axios.post(
+          "http://localhost:4000/api/reserva/obtener-monto",
+          { estado_pago, cancha },
+          {
+            headers: {
+              "x-token": token,
+            },
+          }
+        );
+        const monto = resp.data.monto;
+
+        //Aseguramos los campos correctos
+        if (estado_pago === "TOTAL") {
+          nuevaReserva.monto_cancha = monto;
+          nuevaReserva.monto_sena = 0;
+        } else if (estado_pago === "SEÑA") {
+          nuevaReserva.monto_sena = monto;
+          nuevaReserva.monto_cancha = 0;
+        } else {
+          nuevaReserva.monto_sena = 0;
+          nuevaReserva.monto_cancha = 0;
+        }
+        console.log("Nuevo monto actualizado:", nuevaReserva);
+      } catch (error) {
+        console.error(
+          "Error al obtener el nuevo monto:",
+          error?.response?.data || error.message
+        );
+        return res.status(400).json({
+          ok: false,
+          msg: "Error al actualizar el monto. Verificá que los datos sean correctos.",
+        });
+      }
+    }
+    // ✅ ACTUALIZAMOS SOLO CAMPOS REALES
+    const camposValidos = {
+      cliente: nuevaReserva.cliente,
+      cancha: nuevaReserva.cancha,
+      estado_pago: nuevaReserva.estado_pago,
+      monto_cancha: nuevaReserva.monto_cancha,
+      monto_sena: nuevaReserva.monto_sena,
+      fecha: nuevaReserva.fecha,
+      hora: nuevaReserva.hora,
+      forma_pago: nuevaReserva.forma_pago,
+      observacion: nuevaReserva.observacion,
+      title: nuevaReserva.title,
+      start: nuevaReserva.start,
+      end: nuevaReserva.end,
+      user: nuevaReserva.user,
+      nombreCliente: nuevaReserva.nombreCliente,
+      apellidoCliente: nuevaReserva.apellidoCliente,
+    };
 
     //new:true, significa que va a retorar los datos actualizados
     const reservaActualizada = await Reserva.findByIdAndUpdate(
       reservaId,
-      nuevaReserva,
+      // nuevaReserva,
+      camposValidos,
       { new: true }
     );
-    console.log(reservaActualizada);
+    console.log("🟢 RESERVA ACTUALIZADA CORRECTAMENTE:", reservaActualizada);
 
     //Buscar al cliente por ID (que está en reservaActualizada.cliente)
     const cliente = await Cliente.findOne({ dni: reservaActualizada.cliente });
@@ -399,7 +493,7 @@ const actualizarReserva = async (req, res = response) => {
 
     return res.status(200).json({
       ok: true,
-      reserva: nuevaReserva,
+      reserva: reservaActualizada,
       msg: "Reserva actualizada",
     });
   } catch (error) {
@@ -417,7 +511,6 @@ const eliminarReserva = async (req, res = response) => {
   const reservaId = req.params.id;
   try {
     const reserva = await Reserva.findById(reservaId);
-    // console.log(reserva);
 
     if (!reserva) {
       return res.status(400).json({
@@ -431,7 +524,7 @@ const eliminarReserva = async (req, res = response) => {
 
     //Buscar al cliente por ID (que está en reservaActualizada.cliente)
     const cliente = await Cliente.findOne({ dni: reserva.cliente });
-    console.log(cliente.email);
+
     const email = cliente.email;
     const fechaFormateada = reserva.fechaCopia
       ? new Date(reserva.fechaCopia).toLocaleDateString("es-AR")
@@ -725,7 +818,6 @@ const recaudacionFormasDePago = async (req, res = response) => {
     cantidad_monto = monto.length;
 
     if (forma_pago === "TODAS" && cancha === "TODAS") {
-      console.log("Paso por Todas");
       // aplico filtro sin la cancha
       const resumenFiltro4 = reservasfiltroPagosCancha.map((reserva) => {
         return {
@@ -746,7 +838,6 @@ const recaudacionFormasDePago = async (req, res = response) => {
     }
 
     if (cancha === "TODAS") {
-      console.log("Paso por Todas");
       // aplico filtro sin la cancha
       const resumenFiltro2 = reservasfiltroCancha.map((reserva) => {
         return {
@@ -767,7 +858,6 @@ const recaudacionFormasDePago = async (req, res = response) => {
     }
 
     if (forma_pago === "TODAS") {
-      console.log("Paso por Todas");
       // aplico filtro sin la cancha
       const resumenFiltro3 = reservasfiltroPagos.map((reserva) => {
         return {
