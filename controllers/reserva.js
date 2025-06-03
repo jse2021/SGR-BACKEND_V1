@@ -299,14 +299,25 @@ const getCanchaHora = async (req, res = response) => {
  *CONSULTAR RESERVAS POR FECHA Y CANCHA
  */
 const getReservaFechaCancha = async (req, res = response) => {
-  const { fechaCopia, cancha } = req.params;
-  // Busca las reservas de la fecha
-  const reservasFecha = await Reserva.find({
-    fechaCopia,
-    cancha: cancha,
-  });
+  const { fecha, cancha } = req.params;
+
   try {
-    if (reservasFecha == "") {
+    //uso estas fechas, sin importar el horario.
+    const fechaInicio = new Date(fecha);
+    fechaInicio.setUTCHours(0, 0, 0, 0);
+
+    const fechaFin = new Date(fecha);
+    fechaFin.setUTCHours(23, 59, 59, 999);
+
+    // Busca las reservas de la fecha
+    const reservasFecha = await Reserva.find({
+      fecha: {
+        $gte: fechaInicio,
+        $lt: fechaFin,
+      },
+      cancha: cancha,
+    });
+    if (reservasFecha.length === 0) {
       return res.status(400).json({
         ok: false,
         msg: "No existen reservas asociadas a la fecha",
@@ -440,7 +451,7 @@ const actualizarReserva = async (req, res = response) => {
         });
       }
     }
-    // ✅ ACTUALIZAMOS SOLO CAMPOS REALES
+    //ACTUALIZAMOS SOLO CAMPOS REALES
     const camposValidos = {
       cliente: nuevaReserva.cliente,
       cancha: nuevaReserva.cancha,
@@ -466,7 +477,7 @@ const actualizarReserva = async (req, res = response) => {
       camposValidos,
       { new: true }
     );
-    console.log("🟢 RESERVA ACTUALIZADA CORRECTAMENTE:", reservaActualizada);
+    console.log("RESERVA ACTUALIZADA CORRECTAMENTE:", reservaActualizada);
 
     //Buscar al cliente por ID (que está en reservaActualizada.cliente)
     const cliente = await Cliente.findOne({ dni: reservaActualizada.cliente });

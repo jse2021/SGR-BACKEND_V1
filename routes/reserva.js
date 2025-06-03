@@ -49,8 +49,8 @@ router.post("/horarios-disponibles", validarJWT, obtenerHorasDisponibles);
 router.post("/obtener-monto", validarJWT, obtenerMontoPorEstado);
 
 // Obtener Reservas
-router.get("/:fechaCopia/:cancha", getCanchaHora);
-router.get("/:fechaCopia/:cancha", getReservaFechaCancha);
+// router.get("/:fechaCopia/:cancha", getCanchaHora);
+router.get("/:fecha/:cancha", getReservaFechaCancha);
 router.get(
   "/:fechaCopia/:cancha/:forma_pago/:estado_pago",
   recaudacionFormasDePago
