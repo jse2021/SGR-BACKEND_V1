@@ -341,8 +341,45 @@ const getReservaFechaCancha = async (req, res = response) => {
  * CONSULTAR RESERVA: POR CLIENTE(APELLIDO) EN UN RANGO DE FECHAS
  * 14/05 - PROXIMA IMPLEMENTACION: VER SI PODEMOS CONSULTAR POR NOMBRE, O APELLIDO DEL CLIENTE
  */
+// const getReservaClienteRango = async (req, res = response) => {
+//   const { cliente, fechaIni, fechaFin } = req.params;
+
+//   try {
+//     const rangoFechas = {
+//       $gte: new Date(fechaIni),
+//       $lte: new Date(fechaFin),
+//     };
+
+//     // Obtiene las reservas del cliente especificado en el rango de fechas especificado
+//     const reservasCliente = await Reserva.find({
+//       cliente,
+//       fecha: rangoFechas,
+//     });
+
+//     const total = await Reserva.countDocuments
+
+//     if (reservasCliente == "") {
+//       return res.status(400).json({
+//         ok: false,
+//         msg: "No existen reservas para el cliente indicado",
+//       });
+//     }
+//     return res.status(200).json({
+//       ok: true,
+//       reservasCliente,
+//       msg: "Listado de reservas del cliente",
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       ok: false,
+//       msg: "Consulte con el administrador",
+//     });
+//   }
+// };
 const getReservaClienteRango = async (req, res = response) => {
   const { cliente, fechaIni, fechaFin } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
 
   try {
     const rangoFechas = {
@@ -350,22 +387,24 @@ const getReservaClienteRango = async (req, res = response) => {
       $lte: new Date(fechaFin),
     };
 
-    // Obtiene las reservas del cliente especificado en el rango de fechas especificado
-    const reservasCliente = await Reserva.find({
+    const filter = {
       cliente,
       fecha: rangoFechas,
-    });
+    };
 
-    if (reservasCliente == "") {
-      return res.status(400).json({
-        ok: false,
-        msg: "No existen reservas para el cliente indicado",
-      });
-    }
+    const total = await Reserva.countDocuments(filter); // cuenta la cantidad de reservas, sirve para para saber total de paginas a mostrar
+    const reservasCliente = await Reserva.find(filter)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort({ fecha: -1 });
+
     return res.status(200).json({
       ok: true,
       reservasCliente,
-      msg: "Listado de reservas del cliente",
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      msg: "Listado paginado de reservas del cliente",
     });
   } catch (error) {
     return res.status(500).json({
@@ -374,6 +413,7 @@ const getReservaClienteRango = async (req, res = response) => {
     });
   }
 };
+
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 /**
