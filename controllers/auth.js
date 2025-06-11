@@ -84,12 +84,6 @@ const crearUsuario = async (req, res = response) => {
 
   try {
     console.log({ tipoUsuario });
-    if (tipoUsuario === "Estandar") {
-      return res.status(400).json({
-        ok: false,
-        msg: "Ud. no puede crear usuarios",
-      });
-    }
 
     let usuario = await Usuario.findOne({ user });
 
@@ -156,6 +150,7 @@ const buscarUsuarios = async (req, res = response) => {
       msg: "Usuarios encontrados",
     });
   } catch (error) {
+    SW;
     console.log({ error });
     res.status(500).json({
       ok: false,
