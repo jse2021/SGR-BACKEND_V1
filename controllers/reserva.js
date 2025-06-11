@@ -300,82 +300,100 @@ const getCanchaHora = async (req, res = response) => {
  */
 const getReservaFechaCancha = async (req, res = response) => {
   const { fecha, cancha } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
 
   try {
-    //uso estas fechas, sin importar el horario.
     const fechaInicio = new Date(fecha);
     fechaInicio.setUTCHours(0, 0, 0, 0);
 
     const fechaFin = new Date(fecha);
     fechaFin.setUTCHours(23, 59, 59, 999);
 
-    // Busca las reservas de la fecha
-    const reservasFecha = await Reserva.find({
+    const filter = {
       fecha: {
         $gte: fechaInicio,
         $lt: fechaFin,
       },
-      cancha: cancha,
-    });
-    if (reservasFecha.length === 0) {
-      return res.status(400).json({
+      cancha,
+    };
+
+    const total = await Reserva.countDocuments(filter);
+    const reservasFecha = await Reserva.find(filter)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort({ hora: 1 });
+
+    if (!reservasFecha.length) {
+      return res.status(404).json({
         ok: false,
         msg: "No existen reservas asociadas a la fecha",
       });
     }
+
     return res.status(200).json({
       ok: true,
       reservasFecha,
-      msg: "Traigo todas las reservas",
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      msg: "Listado paginado de reservas por fecha y cancha",
     });
   } catch (error) {
-    console.log({ error });
+    console.error({ error });
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
     });
   }
 };
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------
-/**
- * CONSULTAR RESERVA: POR CLIENTE(APELLIDO) EN UN RANGO DE FECHAS
- * 14/05 - PROXIMA IMPLEMENTACION: VER SI PODEMOS CONSULTAR POR NOMBRE, O APELLIDO DEL CLIENTE
- */
-// const getReservaClienteRango = async (req, res = response) => {
-//   const { cliente, fechaIni, fechaFin } = req.params;
+
+// const getReservaFechaCancha = async (req, res = response) => {
+//   const { fecha, cancha } = req.params;
+//   const page = parseInt(req.query.page) || 1;
+//   const limit = parseInt(req.query.limit) || 10;
 
 //   try {
-//     const rangoFechas = {
-//       $gte: new Date(fechaIni),
-//       $lte: new Date(fechaFin),
-//     };
+//     //uso estas fechas, sin importar el horario.
+//     const fechaInicio = new Date(fecha);
+//     fechaInicio.setUTCHours(0, 0, 0, 0);
 
-//     // Obtiene las reservas del cliente especificado en el rango de fechas especificado
-//     const reservasCliente = await Reserva.find({
-//       cliente,
-//       fecha: rangoFechas,
+//     const fechaFin = new Date(fecha);
+//     fechaFin.setUTCHours(23, 59, 59, 999);
+
+//     // Busca las reservas de la fecha
+//     const reservasFecha = await Reserva.find({
+//       fecha: {
+//         $gte: fechaInicio,
+//         $lt: fechaFin,
+//       },
+//       cancha: cancha,
 //     });
 
-//     const total = await Reserva.countDocuments
-
-//     if (reservasCliente == "") {
+//     if (reservasFecha.length === 0) {
 //       return res.status(400).json({
 //         ok: false,
-//         msg: "No existen reservas para el cliente indicado",
+//         msg: "No existen reservas asociadas a la fecha",
 //       });
 //     }
 //     return res.status(200).json({
 //       ok: true,
-//       reservasCliente,
-//       msg: "Listado de reservas del cliente",
+//       reservasFecha,
+//       msg: "Traigo todas las reservas",
 //     });
 //   } catch (error) {
+//     console.log({ error });
 //     return res.status(500).json({
 //       ok: false,
 //       msg: "Consulte con el administrador",
 //     });
 //   }
 // };
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------
+/**
+ * CONSULTAR RESERVA: POR CLIENTE(APELLIDO) EN UN RANGO DE FECHAS
+ * 14/05 - PROXIMA IMPLEMENTACION: VER SI PODEMOS CONSULTAR POR NOMBRE, O APELLIDO DEL CLIENTE
+ */
 const getReservaClienteRango = async (req, res = response) => {
   const { cliente, fechaIni, fechaFin } = req.params;
   const page = parseInt(req.query.page) || 1;
@@ -412,7 +430,41 @@ const getReservaClienteRango = async (req, res = response) => {
       msg: "Consulte con el administrador",
     });
   }
-};
+}; // const getReservaClienteRango = async (req, res = response) => {
+//   const { cliente, fechaIni, fechaFin } = req.params;
+
+//   try {
+//     const rangoFechas = {
+//       $gte: new Date(fechaIni),
+//       $lte: new Date(fechaFin),
+//     };
+
+//     // Obtiene las reservas del cliente especificado en el rango de fechas especificado
+//     const reservasCliente = await Reserva.find({
+//       cliente,
+//       fecha: rangoFechas,
+//     });
+
+//     const total = await Reserva.countDocuments
+
+//     if (reservasCliente == "") {
+//       return res.status(400).json({
+//         ok: false,
+//         msg: "No existen reservas para el cliente indicado",
+//       });
+//     }
+//     return res.status(200).json({
+//       ok: true,
+//       reservasCliente,
+//       msg: "Listado de reservas del cliente",
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       ok: false,
+//       msg: "Consulte con el administrador",
+//     });
+//   }
+// };
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------
 
