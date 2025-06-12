@@ -129,7 +129,6 @@ const buscarUsuarios = async (req, res = response) => {
 
   try {
     const regex = new RegExp(termino, "i"); // 'i' para que no distinga mayúsculas/minúsculas
-
     const [usuarios, total] = await Promise.all([
       Usuario.find({
         $or: [{ nombre: regex }, { apellido: regex }, { user: regex }],
@@ -150,7 +149,7 @@ const buscarUsuarios = async (req, res = response) => {
       msg: "Usuarios encontrados",
     });
   } catch (error) {
-    SW;
+    
     console.log({ error });
     res.status(500).json({
       ok: false,

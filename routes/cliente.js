@@ -7,8 +7,8 @@ const { validationResult, check } = require("express-validator");
 const { validarCampos } = require("../middlewares/validar-campos");
 const {
   crearCliente,
-  getCliente,
-  getClientePorApellido,
+  buscarCliente,
+  
   actualizarCliente,
   eliminarCliente,
 } = require("../controllers/cliente");
@@ -28,8 +28,8 @@ router.post(
   crearCliente
 );
 
-router.get("/", getCliente);
-router.get("/:apellido", getClientePorApellido);
+router.get("/buscar/:termino", buscarCliente);
+// router.get("/:apellido", getClientePorApellido);
 router.put("/:dni", actualizarCliente);
 router.delete("/:dni", eliminarCliente);
 

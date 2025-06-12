@@ -1,7 +1,7 @@
 const { response } = require("express");
 const { validationResult } = require("express-validator");
 const Cliente = require("../models/Cliente");
-
+//---------------------------------------------------------------------------------------------
 /**
  * CREAR CLIENTE
  * DNI - EMAIL DEBEN SER UNICOS
@@ -19,6 +19,7 @@ const crearCliente = async (req, res = response) => {
         msg: "Dni ingresado esta asociado a otro cliente",
         dni: cliente.dni,
         nombre: cliente.nombre,
+        apellido: cliente.apellido,
       });
     }
     let clienteEmail = await Cliente.findOne({ email });
@@ -27,6 +28,8 @@ const crearCliente = async (req, res = response) => {
       return res.status(400).json({
         ok: false,
         msg: "Email ingresado esta asociado a otro cliente",
+        nombre: clienteEmail.nombre,
+        apellido: clienteEmail.apellido,
         email: clienteEmail.email,
       });
     }
@@ -46,29 +49,42 @@ const crearCliente = async (req, res = response) => {
     });
   }
 };
-
+//---------------------------------------------------------------------------------------------
 /**
  * CONSULTA TODOS LOS CLIENTES
  * TRAE TODOS, LUEGO EN EL FRONT APLICAMOS FILTRO
  */
 
-const getCliente = async (req, res = response) => {
-  const clientes = await Cliente.find();
+const buscarCliente = async (req, res = response) => {
+  const { termino } = req.params;
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 5;
+  const skip = (page - 1) * limit;
+  // const clientes = await Cliente.find();
 
   try {
-    if (!clientes) {
-      return res.status(400).json({
-        ok: false,
-        msg: "El cliente no existe",
-      });
-    }
-
-    res.json({
+    const regex = new RegExp(termino, "i"); // 'i' para que no distinga mayúsculas/minúsculas
+  const [clientes, total] = await Promise.all([
+        Cliente.find({
+          $or: [{ nombre: regex }, { apellido: regex }, { dni: regex }],
+        })
+          .skip(skip)
+          .limit(limit),
+        Cliente.countDocuments({
+          $or: [{ nombre: regex }, { apellido: regex }, { dni: regex }],
+        }),
+      ]);
+      console.log(clientes)
+     res.json({
       ok: true,
       clientes,
-      msg: "Traigo todos los clientes",
+      total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      msg: "Clientes encontrados",
     });
   } catch (error) {
+     
     console.log({ error });
     res.status(500).json({
       ok: false,
@@ -77,34 +93,6 @@ const getCliente = async (req, res = response) => {
   }
 };
 
-/**
- * CONSULTA CLIENTE POR APELLID
- */
-
-const getClientePorApellido = async (req, res = response) => {
-  const { apellido } = req.params;
-
-  try {
-    const cliente = await Cliente.find({ apellido });
-    if (!cliente) {
-      return res.status(400).json({
-        ok: false,
-        msg: "El cliente no existe en la base de datos",
-      });
-    }
-    return res.status(200).json({
-      ok: true,
-      cliente,
-      msg: "Traigo todos los clientes",
-    });
-  } catch (error) {
-    console.log({ error });
-    res.status(500).json({
-      ok: false,
-      msg: "Consulte con el administrador",
-    });
-  }
-};
 
 /**
  * ACTUALIZAR CLIENTE
@@ -179,8 +167,7 @@ const eliminarCliente = async (req, res = response) => {
 
 module.exports = {
   crearCliente,
-  getCliente,
-  getClientePorApellido,
+  buscarCliente,
   actualizarCliente,
   eliminarCliente,
 };
