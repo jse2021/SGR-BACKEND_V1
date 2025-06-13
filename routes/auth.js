@@ -49,7 +49,6 @@ router.get("/renew", validarJWT, revalidartoken);
 router.get("/", getUsuario);
 router.get("/buscar/:termino", validarJWT, buscarUsuarios);
 router.get("/:apellido", getUsuarioPorUser);
-// router.put("/:user", actualizarUsuario);
 router.put("/actualizar/:id", actualizarUsuario);
 router.delete("/:id", validarJWT, eliminarUsuario);
 

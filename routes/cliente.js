@@ -29,8 +29,7 @@ router.post(
 );
 
 router.get("/buscar/:termino", buscarCliente);
-// router.get("/:apellido", getClientePorApellido);
-router.put("/:dni", actualizarCliente);
-router.delete("/:dni", eliminarCliente);
+router.delete("/:id", eliminarCliente);
+router.put("/actualizar/:id", actualizarCliente);
 
 module.exports = router;

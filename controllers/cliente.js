@@ -92,66 +92,25 @@ const buscarCliente = async (req, res = response) => {
     });
   }
 };
-
-
+//---------------------------------------------------------------------------------------------
 /**
- * ACTUALIZAR CLIENTE
- * EL FILTRO SE REALIZA DESDE EL FRONT END
- * ACTUALIZADO POR DNI
- */
-
-const actualizarCliente = async (req, res = response) => {
-  const { dni } = req.params;
-
-  try {
-    const cliente = await Cliente.findOne({ dni });
-    if (!cliente) {
-      return res.status(400).json({
-        ok: false,
-        msg: "El cliente no existe en la base de datos",
-      });
-    }
-
-    const nuevoCliente = {
-      ...req.body,
-    };
-    //new:true, significa que va a retorar los datos actualizados
-    const clienteActualizado = await Cliente.findOneAndUpdate(
-      { dni },
-      nuevoCliente,
-      { new: true }
-    );
-    res.json({
-      ok: true,
-      cliente: nuevoCliente,
-      msg: "Cliente Actualizado",
-    });
-  } catch (error) {
-    console.log({ error });
-    res.status(500).json({
-      ok: false,
-      msg: "Consulte con el administrador",
-    });
-  }
-};
-
-/**
- * ELIMINAR CLIENTE - EL FILTRO SE HACE DESDE EL FRONT
- * CLIENTE ELIMINADO POR DNI
+ * ELIMINAR CLIENTE_ID
  */
 const eliminarCliente = async (req, res = response) => {
-  const { dni } = req.params;
+  const clienteId = req.params.id;
+  console.log("Backend: ", clienteId);
+
   try {
-    const cliente = await Cliente.findOne({ dni });
+    const cliente = await Cliente.findById(clienteId);
     if (!cliente) {
-      return res.status(400).json({
+      return res.status(404).json({
         ok: false,
         msg: "Cliente inexistente",
       });
     }
 
-    await Cliente.findOneAndDelete({ dni });
-
+    await Cliente.findByIdAndDelete(clienteId);
+    
     res.json({
       ok: true,
       msg: "Cliente Eliminado",
@@ -164,6 +123,58 @@ const eliminarCliente = async (req, res = response) => {
     });
   }
 };
+
+/**
+ * ACTUALIZAR USUARIO - EL FILTRO SE HACE DESDE EL FRONT
+ * ACTUALIZA POR USER
+ */
+
+const actualizarCliente = async (req, res = response) => {
+  const { id } = req.params;
+
+  try {
+    const cliente = await Cliente.findById(id);
+
+    if (!cliente) {
+      return res.status(404).json({
+        ok: false,
+        msg: "Cliente no encontrado",
+      });
+    }
+
+    const camposActualizados = { ...req.body };
+
+    // Si viene password nueva, encriptar
+    if (camposActualizados.password) {
+      const salt = bcrypt.genSaltSync();
+      camposActualizados.password = bcrypt.hashSync(
+        camposActualizados.password,
+        salt
+      );
+    }
+
+    const clienteActualizado = await Cliente.findByIdAndUpdate(
+      id,
+      camposActualizados,
+      {
+        new: true,
+      }
+    );
+
+    return res.json({
+      ok: true,
+      usuario: clienteActualizado,
+      msg: "Cliente actualizado correctamente",
+    });
+  } catch (error) {
+    console.log({ error });
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al actualizar. Hable con el administrador.",
+    });
+  }
+};
+
 
 module.exports = {
   crearCliente,

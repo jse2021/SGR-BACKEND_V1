@@ -119,7 +119,7 @@ const crearUsuario = async (req, res = response) => {
   }
 };
 /**
- * BUSCO USUARIOS CON TODOS LOS FILTROS
+ * BUSCO USUARIOS CON TODOS LOS FILTROS BACKEND
  */
 const buscarUsuarios = async (req, res = response) => {
   const { termino } = req.params;
@@ -284,7 +284,7 @@ const eliminarUsuario = async (req, res = response) => {
     }
 
     await Usuario.findByIdAndDelete(usuarioId);
-
+    
     res.json({
       ok: true,
       msg: "Usuario Eliminado",
@@ -297,41 +297,6 @@ const eliminarUsuario = async (req, res = response) => {
     });
   }
 };
-
-// const eliminarUsuario = async (req, res = response) => {
-//   const usuarioId = req.params.id;
-
-//   try {
-//     const usuarioRequest = await Usuario.findById(req.id); // <- el que hace la petición
-//     if (!usuarioRequest) {
-//       return res.status(400).json({
-//         ok: false,
-//         msg: "No autorizado",
-//       });
-//     }
-
-//     const usuario = await Usuario.findById(usuarioId);
-//     if (!usuario) {
-//       return res.status(404).json({
-//         ok: false,
-//         msg: "Usuario inexistente",
-//       });
-//     }
-
-//     await Usuario.findByIdAndDelete(usuarioId);
-
-//     res.json({
-//       ok: true,
-//       msg: "Usuario Eliminado",
-//     });
-//   } catch (error) {
-//     console.log({ error });
-//     res.status(500).json({
-//       ok: false,
-//       msg: "Consulte con el administrador",
-//     });
-//   }
-// };
 
 module.exports = {
   crearUsuario,
