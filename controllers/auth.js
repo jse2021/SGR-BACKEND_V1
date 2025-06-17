@@ -217,8 +217,7 @@ const getUsuarioPorUser = async (req, res = response) => {
 };
 
 /**
- * ACTUALIZAR USUARIO - EL FILTRO SE HACE DESDE EL FRONT
- * ACTUALIZA POR USER
+ * ACTUALIZAR USUARIO 
  */
 
 const actualizarUsuario = async (req, res = response) => {

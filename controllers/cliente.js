@@ -60,7 +60,7 @@ const buscarCliente = async (req, res = response) => {
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 5;
   const skip = (page - 1) * limit;
-  // const clientes = await Cliente.find();
+  
 
   try {
     const regex = new RegExp(termino, "i"); // 'i' para que no distinga mayúsculas/minúsculas

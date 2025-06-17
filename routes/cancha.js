@@ -5,7 +5,7 @@ const express = require('express')
 const router = express.Router();
 const {validationResult, check} =  require('express-validator')
 const {validarCampos} = require('../middlewares/validar-campos')
-const {crearCancha, getCancha, getCanchaPorNombre, actualizarCancha,eliminarCancha} = require('../controllers/cancha')
+const {crearCancha, actualizarCancha,eliminarCancha, buscarCancha} = require('../controllers/cancha')
 
 
 router.post('/crearCancha', [
@@ -16,10 +16,9 @@ router.post('/crearCancha', [
 ],crearCancha)
 
 
-router.get('/', getCancha);
-router.get('/:nombre',getCanchaPorNombre)
+router.get("/buscar/:termino", buscarCancha);
 router.put('/:nombre', actualizarCancha);
-router.delete('/:nombre',eliminarCancha)
+router.delete("/:id", eliminarCancha);
 
 
 
