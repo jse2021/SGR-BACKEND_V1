@@ -149,12 +149,74 @@ const eliminarCancha = async(req, res = response)=> {
     });
   }
 };
+/**
+ * CONSULTAR TODAS LAS CANCHAS SIN FILTRO
+ */
 
+const getCancha = async (req, res = response) => {
+    const canchas = await Cancha.find();
+
+    try {
+        if (!canchas) {
+            return res.status(400).json({
+                ok: false,
+                msg:'La cancha  no existe'
+            })
+        }
+
+        return res.json({
+            ok: true, 
+            canchas: canchas.map((cancha) => ({
+                id: cancha.id,
+                nombre: cancha.nombre,
+                medidas: cancha.medidas
+            })),
+            msg: "Traigo todas las canchas"
+        }) 
+    } catch (error) {
+        console.log({error})
+        res.status(500).json({
+            ok:false,
+            msg:"Consulte con el administrador"
+        })
+    }
+}/**
+ * CONSULTAR CANCHA POR NOMBRE
+ */
+
+const getCanchaPorNombre = async(req, res = response) => {
+    const {nombre} = req.params;
+
+    try {
+        
+        const cancha  = await Cancha.find({nombre});
+        if (!cancha) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'La cancha no existe en la base de datos'
+            })}
+            
+            return res.status(200).json({
+                ok: true,
+                cancha,
+                msg:'Traigo cancha'
+            })        
+    } catch (error) {
+        console.log({error})
+        res.status(500).json({
+            ok: false,
+            msg: "Consulte con el administrador"
+        })
+    }
+
+}
 
 
 module.exports = {
     crearCancha,
    buscarCancha,
+   getCanchaPorNombre,
+   getCancha,
     eliminarCancha,
     actualizarCancha
 }

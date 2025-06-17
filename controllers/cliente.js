@@ -94,6 +94,35 @@ const buscarCliente = async (req, res = response) => {
 };
 //---------------------------------------------------------------------------------------------
 /**
+ * CONSULTA TODOS LOS CLIENTES
+ * TRAE TODOS, LUEGO EN EL FRONT APLICAMOS FILTRO
+ */
+
+const getCliente = async (req, res = response) => {
+  const clientes = await Cliente.find();
+
+  try {
+    if (!clientes) {
+      return res.status(400).json({
+        ok: false,
+        msg: "El cliente no existe",
+      });
+    }
+
+    res.json({
+      ok: true,
+      clientes,
+      msg: "Traigo todos los clientes",
+    });
+  } catch (error) {
+    console.log({ error });
+    res.status(500).json({
+      ok: false,
+      msg: "Consulte con el administrador",
+    });
+  }
+};
+/**
  * ELIMINAR CLIENTE_ID
  */
 const eliminarCliente = async (req, res = response) => {
@@ -173,10 +202,40 @@ const actualizarCliente = async (req, res = response) => {
     });
   }
 };
+/**
+ * CONSULTA CLIENTE POR APELLID
+ */
+
+const getClientePorApellido = async (req, res = response) => {
+  const { apellido } = req.params;
+
+  try {
+    const cliente = await Cliente.find({ apellido });
+    if (!cliente) {
+      return res.status(400).json({
+        ok: false,
+        msg: "El cliente no existe en la base de datos",
+      });
+    }
+    return res.status(200).json({
+      ok: true,
+      cliente,
+      msg: "Traigo todos los clientes",
+    });
+  } catch (error) {
+    console.log({ error });
+    res.status(500).json({
+      ok: false,
+      msg: "Consulte con el administrador",
+    });
+  }
+};
 
 
 module.exports = {
   crearCliente,
+  getCliente,
+  getClientePorApellido,
   buscarCliente,
   actualizarCliente,
   eliminarCliente,

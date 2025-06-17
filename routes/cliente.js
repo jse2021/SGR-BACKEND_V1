@@ -8,7 +8,8 @@ const { validarCampos } = require("../middlewares/validar-campos");
 const {
   crearCliente,
   buscarCliente,
-  
+   getCliente,
+  getClientePorApellido,
   actualizarCliente,
   eliminarCliente,
 } = require("../controllers/cliente");
@@ -31,5 +32,7 @@ router.post(
 router.get("/buscar/:termino", buscarCliente);
 router.delete("/:id", eliminarCliente);
 router.put("/actualizar/:id", actualizarCliente);
+router.get("/", getCliente);
+router.get("/:apellido", getClientePorApellido);
 
 module.exports = router;
