@@ -126,7 +126,6 @@ const eliminarCliente = async (req, res = response) => {
 
 /**
  * ACTUALIZAR USUARIO - EL FILTRO SE HACE DESDE EL FRONT
- * ACTUALIZA POR USER
  */
 
 const actualizarCliente = async (req, res = response) => {

@@ -83,37 +83,40 @@ const crearCancha = async(req, res= response)=> {
  * ACTUALIZAR CANCHAS
  */
 
-const actualizarCancha  = async(req, res  = response) => {
-    const{nombre} = req.params;
+const actualizarCancha = async (req, res = response) => {
+  const { id } = req.params;
 
-    try {
-        const cancha = await Cancha.findOne({nombre});
-        if (!cancha) {
-            return res.status(400).json({
-                ok: false,
-                msg:'La cancha no existe en la base de datos'
-            })
-        }
+  try {
+    const cancha = await Cancha.findById(id);
 
-        const nuevaCancha = {
-            ...req.body
-        }
-        //new:true, significa que va a retorar los datos actualizados
-        const canchaActualizada = await Cancha.findOneAndUpdate({nombre}, nuevaCancha, {new: true})
-        res.json({
-            ok: true, 
-            cancha: nuevaCancha,
-            msg: "Cancha Actualizada"
-        })
-
-    } catch (error) {
-        console.log({error})
-        res.status(500).json({
-            ok:false,
-            msg:"Consulte con el administrador"
-        })
+    if (!cancha) {
+      return res.status(404).json({
+        ok: false,
+        msg: "Cancha no encontrado",
+      });
     }
-}
+    const camposActualizados = { ...req.body };
+    const canchaActualizada = await Cancha.findByIdAndUpdate(
+      id,
+      camposActualizados,
+      {
+        new: true,
+      }
+    );
+
+    return res.json({
+      ok: true,
+      usuario: canchaActualizada,
+      msg: "Cancha actualizada correctamente",
+    });
+  } catch (error) {
+    console.log({ error });
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al actualizar. Hable con el administrador.",
+    });
+  }
+};
 //---------------------------------------------------------------------------------------------
 /**
  * ELIMINAR CANCHA

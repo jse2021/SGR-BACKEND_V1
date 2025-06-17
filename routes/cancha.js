@@ -17,7 +17,7 @@ router.post('/crearCancha', [
 
 
 router.get("/buscar/:termino", buscarCancha);
-router.put('/:nombre', actualizarCancha);
+router.put("/actualizar/:id", actualizarCancha);
 router.delete("/:id", eliminarCancha);
 
 
