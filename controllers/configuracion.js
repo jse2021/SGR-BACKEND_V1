@@ -4,10 +4,6 @@ const Configuracion = require("../models/configuracion");
 const mongodb = require("mongodb");
 const configuracion = require("../models/configuracion");
 const Cancha = require("../models/Cancha");
-/**
- * PENDIENTE: NO PUDE SEPARAR LA FECHA Y LA HORA EN MONGOOSE
- * NO DEFINO METODO ELIMINAR PORQUE ESTE MODULO SE PUDE CREAR UNA UNICA VEZ, Y ACTUALILZAR LAS VECES DESEADA
- */
 
 /**
  * CREAR CONFIGURACION MONTOS
@@ -15,13 +11,12 @@ const Cancha = require("../models/Cancha");
 
 const crearMontoCancha = async (req, res = response) => {
   const { nombre } = req.body;
-
   // Traigo todas las canchas
   try {
     const canchaDb = await Cancha.findOne({
       nombre: req.body.nombre,
     });
-
+ 
     if (canchaDb) {
       const configuracion = new Configuracion(req.body);
       const configuracionCancha = await Configuracion.findOne({ nombre });
@@ -80,6 +75,50 @@ const getMontoCanchas = async (req, res = response) => {
     });
   }
 };
+/**
+ * TRAIGO CONFIGURACION POR ID
+ */
+const getMontoCanchaId = async (req, res = response) => {
+  const { idCancha } = req.params;
+
+  try {
+    // Busco el nombre de la cancha en la colección Cancha
+    const canchaDb = await Cancha.findById(idCancha);
+
+    if (!canchaDb) {
+      return res.status(404).json({
+        ok: false,
+        msg: "Cancha no encontrada",
+      });
+    }
+
+    // Busco configuración por nombre
+    const configuracion = await Configuracion.findOne({ nombre: canchaDb.nombre });
+
+    if (!configuracion) {
+      return res.status(404).json({
+        ok: false,
+        msg: "No existen configuraciones para esta cancha",
+      });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      canchasMonto: configuracion,
+      msg: "Configuración encontrada",
+    });
+  } catch (error) {
+    console.log("❌ Error en getMontoCanchaId:", error);
+    res.status(500).json({
+      ok: false,
+      msg: "Consulte con el administrador",
+    });
+  }
+};
+
+
+
+
 
 /**
  * TRAER TODAS LAS CANCHAS CON PRECIOS
@@ -157,4 +196,5 @@ module.exports = {
   getMontoCanchas,
   actualizarMontoCancha,
   getCanchasPrecio,
+  getMontoCanchaId
 };
