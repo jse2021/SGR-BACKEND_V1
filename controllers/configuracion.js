@@ -108,18 +108,13 @@ const getMontoCanchaId = async (req, res = response) => {
       msg: "Configuración encontrada",
     });
   } catch (error) {
-    console.log("❌ Error en getMontoCanchaId:", error);
+    console.log("Error en getMontoCanchaId:", error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
     });
   }
 };
-
-
-
-
-
 /**
  * TRAER TODAS LAS CANCHAS CON PRECIOS
  */
@@ -152,7 +147,6 @@ const getCanchasPrecio = async (req, res = response) => {
     });
   }
 };
-
 /**
  * ACTUALIZAR LAS CANCHAS
  */

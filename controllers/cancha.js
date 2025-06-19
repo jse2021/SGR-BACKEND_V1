@@ -1,6 +1,7 @@
 const {response} = require('express')
 const {validationResult} = require('express-validator')
 const Cancha = require('../models/Cancha')
+const Configuracion = require("../models/configuracion");
 //---------------------------------------------------------------------------------------------
 /**
  * CREAR CANCHAS
@@ -134,8 +135,13 @@ const eliminarCancha = async(req, res = response)=> {
         msg: "Cancha inexistente",
       });
     }
+    const canchaConf = cancha.nombre;
+    await Cancha.findByIdAndDelete(canchaId); 
 
-    await Cancha.findByIdAndDelete(canchaId);
+  
+
+    // ✅ Eliminamos la configuración relacionada
+    await Configuracion.deleteOne({ nombre: canchaConf });
     
     res.json({
       ok: true,
