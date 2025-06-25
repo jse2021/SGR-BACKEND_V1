@@ -66,7 +66,7 @@ const crearReserva = async (req, res = response) => {
         },
       }
     );
-    console.log(data);
+    
     if (!data.ok) {
       return res
         .status(400)
@@ -286,7 +286,7 @@ const getCanchaHora = async (req, res = response) => {
       msg: "Traigo todas las reservas",
     });
   } catch (error) {
-    console.log({ error });
+    
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -475,7 +475,7 @@ const actualizarReserva = async (req, res = response) => {
   const reservaId = req.params.id;
   const fecha_copia = req.body.fecha_copia;
 
-  console.log("Paso por actualizar: ", req.body);
+  
 
   try {
     if (fecha_copia) {
@@ -502,12 +502,12 @@ const actualizarReserva = async (req, res = response) => {
     }
     const { estado_pago, cancha } = nuevaReserva;
 
-    console.log("Antes del if: ", nuevaReserva.cancha);
+   
 
     // Si cambia el estado_pago o la cancha, consultar nuevo monto
     if (estado_pago && cancha) {
       try {
-        console.log("Entro al if");
+    
         const token = req.header("x-token");
         const resp = await axios.post(
           "http://localhost:4000/api/reserva/obtener-monto",
@@ -531,7 +531,7 @@ const actualizarReserva = async (req, res = response) => {
           nuevaReserva.monto_sena = 0;
           nuevaReserva.monto_cancha = 0;
         }
-        console.log("Nuevo monto actualizado:", nuevaReserva);
+      
       } catch (error) {
         console.error(
           "Error al obtener el nuevo monto:",
@@ -569,7 +569,7 @@ const actualizarReserva = async (req, res = response) => {
       camposValidos,
       { new: true }
     );
-    console.log("RESERVA ACTUALIZADA CORRECTAMENTE:", reservaActualizada);
+    
 
     //Buscar al cliente por ID (que está en reservaActualizada.cliente)
     const cliente = await Cliente.findOne({ dni: reservaActualizada.cliente });
@@ -645,7 +645,7 @@ const eliminarReserva = async (req, res = response) => {
       msg: "Reserva Eliminada",
     });
   } catch (error) {
-    console.log({ error });
+    
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -1003,7 +1003,7 @@ const recaudacionFormasDePago = async (req, res = response) => {
       msg: "Listado de reservas",
     });
   } catch (error) {
-    console.log({ error });
+   
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",

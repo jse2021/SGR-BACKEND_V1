@@ -17,17 +17,28 @@ let tipoUsuario;
 
 const loginUsuario = async (req, res = response) => {
   const { user, password } = req.body;
+   const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      ok: false,
+      msg: "Errores de validación",
+      errors: errors.array()
+    });
+  }
+      console.log(errors.password?.msg)
+  
   try {
     const usuario = await Usuario.findOne({ user });
-    tipoUsuario = usuario.tipo_usuario;
-    console.log({ tipoUsuario });
+
     if (!usuario) {
       return res.status(400).json({
         ok: false,
-        msg: "No existe el usuario",
+        msg: "Usuario no encontrado",
       });
     }
 
+    tipoUsuario = usuario.tipo_usuario;
+    
     // CONFIRMAR CLAVES
     const validarPassword = bcrypt.compareSync(password, usuario.password); // compara los password, da true o false
     if (!validarPassword) {
@@ -51,7 +62,6 @@ const loginUsuario = async (req, res = response) => {
       token,
     });
   } catch (error) {
-    console.log({ error });
     res.status(500).json({
       ok: false,
       msg: "Por consulte al administrador",
