@@ -17,14 +17,6 @@ let tipoUsuario;
 
 const loginUsuario = async (req, res = response) => {
   const { user, password } = req.body;
-  // const errors = validationResult(req);
-  // if (!errors.isEmpty()) {
-  //   return res.status(400).json({
-  //     ok: false,
-  //     msg: "Errores de validación",
-  //     errors: errors.array(),
-  //   });
-  // }
 
   try {
     const usuario = await Usuario.findOne({ user });
@@ -72,12 +64,18 @@ const revalidartoken = async (req, res = response) => {
   const { id, user } = req;
 
   try {
+    const usuario = await Usuario.findById(id);
+
     const token = await generarJWT(id, user);
 
     return res.json({
       ok: true,
-      id,
-      user,
+      user: {
+        id: usuario.id,
+        user: usuario.user,
+        tipo_usuario: usuario.tipo_usuario,
+        nombre: usuario.nombre,
+      },
       token,
     });
   } catch (error) {
@@ -88,6 +86,7 @@ const revalidartoken = async (req, res = response) => {
     });
   }
 };
+
 
 /**
  * CREAR NUEVO USUARIO
