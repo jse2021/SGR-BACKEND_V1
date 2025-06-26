@@ -16,7 +16,7 @@ const crearMontoCancha = async (req, res = response) => {
     const canchaDb = await Cancha.findOne({
       nombre: req.body.nombre,
     });
- 
+
     if (canchaDb) {
       const configuracion = new Configuracion(req.body);
       const configuracionCancha = await Configuracion.findOne({ nombre });
@@ -93,7 +93,9 @@ const getMontoCanchaId = async (req, res = response) => {
     }
 
     // Busco configuración por nombre
-    const configuracion = await Configuracion.findOne({ nombre: canchaDb.nombre });
+    const configuracion = await Configuracion.findOne({
+      nombre: canchaDb.nombre,
+    });
 
     if (!configuracion) {
       return res.status(404).json({
@@ -120,7 +122,6 @@ const getMontoCanchaId = async (req, res = response) => {
  */
 const getCanchasPrecio = async (req, res = response) => {
   const canchasPrecio = await Configuracion.find();
-  console.log(canchasPrecio);
 
   try {
     if (!canchasPrecio) {
@@ -190,5 +191,5 @@ module.exports = {
   getMontoCanchas,
   actualizarMontoCancha,
   getCanchasPrecio,
-  getMontoCanchaId
+  getMontoCanchaId,
 };

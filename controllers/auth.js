@@ -1,5 +1,5 @@
 const { response } = require("express");
-const { validationResult } = require("express-validator");
+// const { validationResult } = require("express-validator");
 const bcrypt = require("bcryptjs");
 const Usuario = require("../models/Usuario");
 const { generarJWT } = require("../helpers/jwt");
@@ -17,16 +17,15 @@ let tipoUsuario;
 
 const loginUsuario = async (req, res = response) => {
   const { user, password } = req.body;
-   const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      ok: false,
-      msg: "Errores de validación",
-      errors: errors.array()
-    });
-  }
-      console.log(errors.password?.msg)
-  
+  // const errors = validationResult(req);
+  // if (!errors.isEmpty()) {
+  //   return res.status(400).json({
+  //     ok: false,
+  //     msg: "Errores de validación",
+  //     errors: errors.array(),
+  //   });
+  // }
+
   try {
     const usuario = await Usuario.findOne({ user });
 
@@ -38,10 +37,12 @@ const loginUsuario = async (req, res = response) => {
     }
 
     tipoUsuario = usuario.tipo_usuario;
-    
+
     // CONFIRMAR CLAVES
     const validarPassword = bcrypt.compareSync(password, usuario.password); // compara los password, da true o false
-    if (!validarPassword) {
+
+    if (!validarPassword || password.length < 6) {
+      console.log("Entro a if password");
       return res.status(400).json({
         ok: false,
         msg: "Password incorrecto",
@@ -53,11 +54,11 @@ const loginUsuario = async (req, res = response) => {
     return res.json({
       ok: true,
       msg: "Accedo a calendario",
-      user:{
-         id: usuario.id,
-         user: usuario.user,
-         tipo_usuario: usuario.tipo_usuario, // <- Asegurate de enviarlo
-         nombre: usuario.nombre, 
+      user: {
+        id: usuario.id,
+        user: usuario.user,
+        tipo_usuario: usuario.tipo_usuario, // <- Asegurate de enviarlo
+        nombre: usuario.nombre,
       },
       token,
     });
@@ -162,7 +163,6 @@ const buscarUsuarios = async (req, res = response) => {
       msg: "Usuarios encontrados",
     });
   } catch (error) {
-    
     console.log({ error });
     res.status(500).json({
       ok: false,
@@ -230,7 +230,7 @@ const getUsuarioPorUser = async (req, res = response) => {
 };
 
 /**
- * ACTUALIZAR USUARIO 
+ * ACTUALIZAR USUARIO
  */
 
 const actualizarUsuario = async (req, res = response) => {
@@ -296,7 +296,7 @@ const eliminarUsuario = async (req, res = response) => {
     }
 
     await Usuario.findByIdAndDelete(usuarioId);
-    
+
     res.json({
       ok: true,
       msg: "Usuario Eliminado",
