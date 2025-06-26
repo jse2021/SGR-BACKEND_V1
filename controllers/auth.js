@@ -42,7 +42,6 @@ const loginUsuario = async (req, res = response) => {
     const validarPassword = bcrypt.compareSync(password, usuario.password); // compara los password, da true o false
 
     if (!validarPassword || password.length < 6) {
-      console.log("Entro a if password");
       return res.status(400).json({
         ok: false,
         msg: "Password incorrecto",

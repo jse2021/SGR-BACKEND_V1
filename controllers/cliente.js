@@ -60,22 +60,21 @@ const buscarCliente = async (req, res = response) => {
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 5;
   const skip = (page - 1) * limit;
-  
 
   try {
     const regex = new RegExp(termino, "i"); // 'i' para que no distinga mayúsculas/minúsculas
-  const [clientes, total] = await Promise.all([
-        Cliente.find({
-          $or: [{ nombre: regex }, { apellido: regex }, { dni: regex }],
-        })
-          .skip(skip)
-          .limit(limit),
-        Cliente.countDocuments({
-          $or: [{ nombre: regex }, { apellido: regex }, { dni: regex }],
-        }),
-      ]);
-      console.log(clientes)
-     res.json({
+    const [clientes, total] = await Promise.all([
+      Cliente.find({
+        $or: [{ nombre: regex }, { apellido: regex }, { dni: regex }],
+      })
+        .skip(skip)
+        .limit(limit),
+      Cliente.countDocuments({
+        $or: [{ nombre: regex }, { apellido: regex }, { dni: regex }],
+      }),
+    ]);
+    console.log(clientes);
+    res.json({
       ok: true,
       clientes,
       total,
@@ -84,7 +83,6 @@ const buscarCliente = async (req, res = response) => {
       msg: "Clientes encontrados",
     });
   } catch (error) {
-     
     console.log({ error });
     res.status(500).json({
       ok: false,
@@ -139,7 +137,7 @@ const eliminarCliente = async (req, res = response) => {
     }
 
     await Cliente.findByIdAndDelete(clienteId);
-    
+
     res.json({
       ok: true,
       msg: "Cliente Eliminado",
@@ -179,6 +177,18 @@ const actualizarCliente = async (req, res = response) => {
         camposActualizados.password,
         salt
       );
+    }
+    // if (cliente.dni) {
+    //   return res.status(404).json({
+    //     ok: false,
+    //     msg: "El dni esta asociado a otro cliente",
+    //   });
+    // }
+    if (cliente.email) {
+      return res.status(404).json({
+        ok: false,
+        msg: "El email esta asociado a otro cliente",
+      });
     }
 
     const clienteActualizado = await Cliente.findByIdAndUpdate(
@@ -230,7 +240,6 @@ const getClientePorApellido = async (req, res = response) => {
     });
   }
 };
-
 
 module.exports = {
   crearCliente,
