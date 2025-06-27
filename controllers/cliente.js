@@ -178,10 +178,15 @@ const actualizarCliente = async (req, res = response) => {
         salt
       );
     }
-    
-   // Validar email duplicado (si cambia)
-    if (camposActualizados.email && camposActualizados.email !== cliente.email) {
-      const emailExistente = await Cliente.findOne({ email: camposActualizados.email });
+
+    // Validar email duplicado (si cambia)
+    if (
+      camposActualizados.email &&
+      camposActualizados.email !== cliente.email
+    ) {
+      const emailExistente = await Cliente.findOne({
+        email: camposActualizados.email,
+      });
 
       if (emailExistente && emailExistente._id.toString() !== id) {
         return res.status(400).json({
@@ -190,14 +195,16 @@ const actualizarCliente = async (req, res = response) => {
         });
       }
     }
-    // Validar dni duplicado (si cambia) 
+    // Validar dni duplicado (si cambia)
     /**
      * DESHABILITO LA OPCION CAMBIA DNI, PORQUE AL HABER UNA RESERVA, VA A DEJAR INCONSISTENCIAS.
-     * PARA ESO, DEBE ELIMINAR LA RESERVA Y ELIMINAR EL CLIENTE. 
+     * PARA ESO, DEBE ELIMINAR LA RESERVA Y ELIMINAR EL CLIENTE.
      * Y GENERAR UNO NUEVO
      */
     if (camposActualizados.dni && camposActualizados.dni !== cliente.dni) {
-      const dniExistente = await Cliente.findOne({ dni: camposActualizados.dni });
+      const dniExistente = await Cliente.findOne({
+        dni: camposActualizados.dni,
+      });
 
       if (dniExistente && dniExistente._id.toString() !== id) {
         return res.status(400).json({
@@ -206,7 +213,6 @@ const actualizarCliente = async (req, res = response) => {
         });
       }
     }
-
 
     const clienteActualizado = await Cliente.findByIdAndUpdate(
       id,

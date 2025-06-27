@@ -4,15 +4,10 @@ const bcrypt = require("bcryptjs");
 const Usuario = require("../models/Usuario");
 const { generarJWT } = require("../helpers/jwt");
 
-/**
- * FALTA EL TIPO_USUARIO: TIENE QUE SER ADMINISTRADOR PARA PODER: CREAR, ACTUALIZAR, Y BUSCAR.
- */
-
 let tipoUsuario;
 
 /**
  * LOGIN USUARIO - CON USER - PASSWORD
- * TERMINADO
  */
 
 const loginUsuario = async (req, res = response) => {
@@ -50,6 +45,7 @@ const loginUsuario = async (req, res = response) => {
         user: usuario.user,
         tipo_usuario: usuario.tipo_usuario, // <- Asegurate de enviarlo
         nombre: usuario.nombre,
+        apellido: usuario.apellido,
       },
       token,
     });
@@ -86,7 +82,6 @@ const revalidartoken = async (req, res = response) => {
     });
   }
 };
-
 
 /**
  * CREAR NUEVO USUARIO
@@ -253,6 +248,35 @@ const actualizarUsuario = async (req, res = response) => {
         camposActualizados.password,
         salt
       );
+    }
+    // Validar user duplicado (si cambia)
+    if (camposActualizados.user && camposActualizados.user !== usuario.user) {
+      const userExistente = await Usuario.findOne({
+        user: camposActualizados.user,
+      });
+
+      if (userExistente && userExistente._id.toString() !== id) {
+        return res.status(400).json({
+          ok: false,
+          msg: "El nombre de usuario ya está registrado por otro usuario",
+        });
+      }
+    }
+    // Validar email duplicado (si cambia)
+    if (
+      camposActualizados.email &&
+      camposActualizados.email !== usuario.email
+    ) {
+      const emailExistente = await Usuario.findOne({
+        email: camposActualizados.email,
+      });
+
+      if (emailExistente && emailExistente._id.toString() !== id) {
+        return res.status(400).json({
+          ok: false,
+          msg: "El email ya está registrado por otro usuario",
+        });
+      }
     }
 
     const usuarioActualizado = await Usuario.findByIdAndUpdate(
