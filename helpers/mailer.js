@@ -9,7 +9,6 @@ const transporter = nodemailer.createTransport({
 });
 
 const enviarCorreoReserva = async (destinatario, datosReserva) => {
-  console.log("Destinatario:", destinatario); // <-- agrega esto para debug
   const mailOptions = {
     from: `"Sistema de Gestión de Reservas" <${process.env.MAIL_USER}>`,
     to: destinatario,
@@ -57,7 +56,6 @@ const enviarCorreoReservaActualizada = async (destinatario, datosReserva) => {
 };
 
 const enviarCorreoReservaEliminada = async (destinatario, datosReserva) => {
-  console.log("Destinatario:", destinatario); // <-- agrega esto para debug
   const mailOptions = {
     from: `"Sistema de Gestión de Reservas" <${process.env.MAIL_USER}>`,
     to: destinatario,

@@ -1,0 +1,11 @@
+[2025-06-27 23:12:13] ERROR: MongoServerError: E11000 duplicate key error collection: sgr_db.clientes index: dni_1 dup key: { dni: "37909102" }
+    at C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongodb\lib\operations\insert.js:50:33
+    at C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongodb\lib\cmap\connection_pool.js:331:21
+    at C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongodb\lib\sdam\server.js:209:17
+    at handleOperationResult (C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongodb\lib\sdam\server.js:337:20)
+    at Connection.onMessage (C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongodb\lib\cmap\connection.js:206:9)
+    at MessageStream.<anonymous> (C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongodb\lib\cmap\connection.js:61:60)
+    at MessageStream.emit (node:events:518:28)
+    at processIncomingData (C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongodb\lib\cmap\message_stream.js:124:16)
+    at MessageStream._write (C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongodb\lib\cmap\message_stream.js:33:9)
+    at writeOrBuffer (node:internal/streams/writable:572:12)

@@ -4,6 +4,7 @@ const Configuracion = require("../models/configuracion");
 const mongodb = require("mongodb");
 const configuracion = require("../models/configuracion");
 const Cancha = require("../models/Cancha");
+const logger = require("../logs/logger");
 
 /**
  * CREAR CONFIGURACION MONTOS
@@ -41,7 +42,7 @@ const crearMontoCancha = async (req, res = response) => {
       });
     }
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -68,7 +69,7 @@ const getMontoCanchas = async (req, res = response) => {
       msg: "Listado de configuraciones",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -110,7 +111,7 @@ const getMontoCanchaId = async (req, res = response) => {
       msg: "Configuración encontrada",
     });
   } catch (error) {
-    console.log("Error en getMontoCanchaId:", error);
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -141,7 +142,7 @@ const getCanchasPrecio = async (req, res = response) => {
       msg: "Listado de configuraciones",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -178,7 +179,7 @@ const actualizarMontoCancha = async (req, res = response) => {
       msg: "Montos actualizados correctamente",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",

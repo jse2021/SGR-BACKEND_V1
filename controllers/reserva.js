@@ -6,6 +6,7 @@ const Cliente = require("../models/Cliente");
 const Usuario = require("../models/Usuario");
 const Cancha = require("../models/Cancha");
 const Configuracion = require("../models/configuracion");
+const logger = require("../logs/logger");
 const {
   enviarCorreoReserva,
   enviarCorreoReservaActualizada,
@@ -66,7 +67,7 @@ const crearReserva = async (req, res = response) => {
         },
       }
     );
-    
+
     if (!data.ok) {
       return res
         .status(400)
@@ -110,7 +111,7 @@ const crearReserva = async (req, res = response) => {
       reserva: guardarReserva,
     });
   } catch (error) {
-    console.error({ error });
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -164,7 +165,7 @@ const obtenerHorasDisponibles = async (req, res = response) => {
       horasDisponibles,
     });
   } catch (error) {
-    console.error(error);
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Error interno del servidor",
@@ -201,7 +202,7 @@ const obtenerMontoPorEstado = async (req, res = response) => {
 
     return res.json({ ok: true, monto });
   } catch (error) {
-    console.error(error);
+    logger.error(error);
     return res.status(500).json({ ok: false, msg: "Error interno" });
   }
 };
@@ -213,19 +214,26 @@ const obtenerMontoPorEstado = async (req, res = response) => {
 
 const getReserva = async (req, res = response) => {
   const reservas = await Reserva.find();
+  try {
+    if (!reservas) {
+      return res.status(400).json({
+        ok: false,
+        msg: "No existen reservas",
+      });
+    }
 
-  if (!reservas) {
-    return res.status(400).json({
+    return res.status(200).json({
+      ok: true,
+      reservas,
+      msg: "Listar todas las reservas",
+    });
+  } catch (error) {
+    logger.error(error);
+    return res.status(500).json({
       ok: false,
-      msg: "No existen reservas",
+      msg: "Error interno del servidor",
     });
   }
-
-  return res.status(200).json({
-    ok: true,
-    reservas,
-    msg: "Listar todas las reservas",
-  });
 };
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -250,6 +258,7 @@ const getReservaFecha = async (req, res = response) => {
       msg: "Traigo todas las reservas",
     });
   } catch (error) {
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -286,7 +295,7 @@ const getCanchaHora = async (req, res = response) => {
       msg: "Traigo todas las reservas",
     });
   } catch (error) {
-    
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -340,7 +349,7 @@ const getReservaFechaCancha = async (req, res = response) => {
       msg: "Listado paginado de reservas por fecha y cancha",
     });
   } catch (error) {
-    console.error({ error });
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -425,6 +434,7 @@ const getReservaClienteRango = async (req, res = response) => {
       msg: "Listado paginado de reservas del cliente",
     });
   } catch (error) {
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -475,8 +485,6 @@ const actualizarReserva = async (req, res = response) => {
   const reservaId = req.params.id;
   const fecha_copia = req.body.fecha_copia;
 
-  
-
   try {
     if (fecha_copia) {
       return res.status(400).json({
@@ -502,12 +510,9 @@ const actualizarReserva = async (req, res = response) => {
     }
     const { estado_pago, cancha } = nuevaReserva;
 
-   
-
     // Si cambia el estado_pago o la cancha, consultar nuevo monto
     if (estado_pago && cancha) {
       try {
-    
         const token = req.header("x-token");
         const resp = await axios.post(
           "http://localhost:4000/api/reserva/obtener-monto",
@@ -531,12 +536,8 @@ const actualizarReserva = async (req, res = response) => {
           nuevaReserva.monto_sena = 0;
           nuevaReserva.monto_cancha = 0;
         }
-      
       } catch (error) {
-        console.error(
-          "Error al obtener el nuevo monto:",
-          error?.response?.data || error.message
-        );
+        logger.error(error);
         return res.status(400).json({
           ok: false,
           msg: "Error al actualizar el monto. Verificá que los datos sean correctos.",
@@ -569,7 +570,6 @@ const actualizarReserva = async (req, res = response) => {
       camposValidos,
       { new: true }
     );
-    
 
     //Buscar al cliente por ID (que está en reservaActualizada.cliente)
     const cliente = await Cliente.findOne({ dni: reservaActualizada.cliente });
@@ -600,6 +600,7 @@ const actualizarReserva = async (req, res = response) => {
       msg: "Reserva actualizada",
     });
   } catch (error) {
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -645,7 +646,7 @@ const eliminarReserva = async (req, res = response) => {
       msg: "Reserva Eliminada",
     });
   } catch (error) {
-    
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -859,7 +860,13 @@ const estadoRecaudacion = async (req, res = response) => {
         msg: "Estado de las reservas",
       });
     }
-  } catch (error) {}
+  } catch (error) {
+    logger.error(error);
+    return res.status(500).json({
+      ok: false,
+      msg: "Consulte con el administrador",
+    });
+  }
 };
 
 /**
@@ -1003,7 +1010,7 @@ const recaudacionFormasDePago = async (req, res = response) => {
       msg: "Listado de reservas",
     });
   } catch (error) {
-   
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",

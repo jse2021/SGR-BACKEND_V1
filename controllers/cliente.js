@@ -1,6 +1,7 @@
 const { response } = require("express");
 const { validationResult } = require("express-validator");
 const Cliente = require("../models/Cliente");
+const logger = require("../logs/logger");
 //---------------------------------------------------------------------------------------------
 /**
  * CREAR CLIENTE
@@ -42,7 +43,7 @@ const crearCliente = async (req, res = response) => {
       apellido,
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -73,7 +74,7 @@ const buscarCliente = async (req, res = response) => {
         $or: [{ nombre: regex }, { apellido: regex }, { dni: regex }],
       }),
     ]);
-    console.log(clientes);
+
     res.json({
       ok: true,
       clientes,
@@ -83,7 +84,7 @@ const buscarCliente = async (req, res = response) => {
       msg: "Clientes encontrados",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -113,7 +114,7 @@ const getCliente = async (req, res = response) => {
       msg: "Traigo todos los clientes",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -125,7 +126,6 @@ const getCliente = async (req, res = response) => {
  */
 const eliminarCliente = async (req, res = response) => {
   const clienteId = req.params.id;
-  console.log("Backend: ", clienteId);
 
   try {
     const cliente = await Cliente.findById(clienteId);
@@ -143,7 +143,7 @@ const eliminarCliente = async (req, res = response) => {
       msg: "Cliente Eliminado",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -228,7 +228,7 @@ const actualizarCliente = async (req, res = response) => {
       msg: "Cliente actualizado correctamente",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Error al actualizar. Hable con el administrador.",
@@ -256,7 +256,7 @@ const getClientePorApellido = async (req, res = response) => {
       msg: "Traigo todos los clientes",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",

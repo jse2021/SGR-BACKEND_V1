@@ -1,5 +1,5 @@
 const { response } = require("express");
-// const { validationResult } = require("express-validator");
+const logger = require("../logs/logger");
 const bcrypt = require("bcryptjs");
 const Usuario = require("../models/Usuario");
 const { generarJWT } = require("../helpers/jwt");
@@ -50,6 +50,7 @@ const loginUsuario = async (req, res = response) => {
       token,
     });
   } catch (error) {
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Por consulte al administrador",
@@ -75,7 +76,7 @@ const revalidartoken = async (req, res = response) => {
       token,
     });
   } catch (error) {
-    console.log(error);
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Error al revalidar el token. Hable con el administrador.",
@@ -118,7 +119,7 @@ const crearUsuario = async (req, res = response) => {
       token,
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "por favor hable con el administrador",
@@ -156,7 +157,7 @@ const buscarUsuarios = async (req, res = response) => {
       msg: "Usuarios encontrados",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -170,7 +171,6 @@ const buscarUsuarios = async (req, res = response) => {
 
 const getUsuario = async (req, res = response) => {
   try {
-    console.log("llego a back");
     const usuario = await Usuario.find();
 
     if (!usuario) {
@@ -186,7 +186,7 @@ const getUsuario = async (req, res = response) => {
       msg: "Muestro usuario",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -214,7 +214,7 @@ const getUsuarioPorUser = async (req, res = response) => {
       msg: "Muestro usuario",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -293,7 +293,7 @@ const actualizarUsuario = async (req, res = response) => {
       msg: "Usuario actualizado correctamente",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Error al actualizar. Hable con el administrador.",
@@ -324,7 +324,7 @@ const eliminarUsuario = async (req, res = response) => {
       msg: "Usuario Eliminado",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",

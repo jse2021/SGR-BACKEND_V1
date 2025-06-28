@@ -21,10 +21,12 @@ const UsuarioSchema = Schema({
   tipo_usuario: {
     type: String,
     required: true,
+    index: true,
   },
   email: {
     type: String,
     required: true,
+    index: true,
   },
   password: {
     type: String,

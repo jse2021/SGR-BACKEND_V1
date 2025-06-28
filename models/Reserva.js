@@ -1,102 +1,100 @@
-const {Schema, model} = require('mongoose')
+const { Schema, model } = require("mongoose");
 // Importamos el modelo Configuracion como referencia
 
-
 const ReservaSchema = Schema({
-
-    cliente: {
-        type: String,
-        required: true,
-        validate: {
-          // La regla de validación se usa para comprobar que el dni es válido
-          // Puede utilizar una expresión regular para comprobar el formato del dni
-          validator: (value) => {
-            return /^[0-9]{8}$/.test(value);
-          },
-          message: "El dni debe tener 8 dígitos",
-        },
+  cliente: {
+    type: String,
+    required: true,
+    index: true,
+    validate: {
+      // La regla de validación se usa para comprobar que el dni es válido
+      // Puede utilizar una expresión regular para comprobar el formato del dni
+      validator: (value) => {
+        return /^[0-9]{8}$/.test(value);
       },
-    nombreCliente:{
-      type:String,
+      message: "El dni debe tener 8 dígitos",
     },
-    
-    apellidoCliente:{
-      type:String,
-    },
-    
-    cancha:{
-        type: Schema.Types.String,
-        upperCase: true,
-    },
-    
-    estado_pago:{
-      type: String, 
-      required: true,
-      upperCase: true,
-    },
-    
-    monto_cancha: {
-      type: Number,
-      required: true,
-    },
-    monto_sena: {
-      type: Number,
-      required: true,
-    },
+  },
+  nombreCliente: {
+    type: String,
+  },
 
-    fechaCopia:{
-      type: String,
-    },
-    
-    fecha: {
-      type: Date, 
-      required: true,
-      },
+  apellidoCliente: {
+    type: String,
+  },
 
-    hora:{
-      type: String, 
-      required: true
-    },
-    
-    forma_pago:{
-      type: String,
-      required: true,
-      upperCase: true,
-    },
+  cancha: {
+    type: Schema.Types.String,
+    upperCase: true,
+    index: true,
+  },
 
-    observacion: {
-      type: String,
-    },
+  estado_pago: {
+    type: String,
+    required: true,
+    upperCase: true,
+  },
 
-    user: {
-      type: String,
-      required: true
-    },
+  monto_cancha: {
+    type: Number,
+    required: true,
+  },
+  monto_sena: {
+    type: Number,
+    required: true,
+  },
 
-    configuracion: {
-      type: Schema.Types.String,
-      ref: "Configuracion",
-  }, 
+  fechaCopia: {
+    type: String,
+    index: true,
+  },
+
+  fecha: {
+    type: Date,
+    required: true,
+    index: true,
+  },
+
+  hora: {
+    type: String,
+    required: true,
+  },
+
+  forma_pago: {
+    type: String,
+    required: true,
+    upperCase: true,
+  },
+
+  observacion: {
+    type: String,
+  },
+
+  user: {
+    type: String,
+    required: true,
+    index: true,
+  },
+
+  configuracion: {
+    type: Schema.Types.String,
+    ref: "Configuracion",
+  },
   title: {
     type: String,
-  
-},
-start: {
+  },
+  start: {
     type: Date,
-  
-},
-end: {
+  },
+  end: {
     type: Date,
-  
-},
+  },
 });
 
-ReservaSchema.method('toJSON', function(){
-   const {__v, _id,...object} = this.toObject();
-   object.id= _id;
-   return object;
-})
+ReservaSchema.method("toJSON", function () {
+  const { __v, _id, ...object } = this.toObject();
+  object.id = _id;
+  return object;
+});
 
-module.exports = model('Reserva', ReservaSchema);
-
-
+module.exports = model("Reserva", ReservaSchema);

@@ -2,6 +2,7 @@ const { response } = require("express");
 const { validationResult } = require("express-validator");
 const Cancha = require("../models/Cancha");
 const Configuracion = require("../models/configuracion");
+const logger = require("../logs/logger");
 //---------------------------------------------------------------------------------------------
 /**
  * CREAR CANCHAS
@@ -28,7 +29,7 @@ const crearCancha = async (req, res = response) => {
       medidas,
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -69,7 +70,7 @@ const buscarCancha = async (req, res = response) => {
       msg: "Canchas encontrados",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -109,7 +110,7 @@ const actualizarCancha = async (req, res = response) => {
       msg: "Cancha actualizada correctamente",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     return res.status(500).json({
       ok: false,
       msg: "Error al actualizar. Hable con el administrador.",
@@ -135,7 +136,7 @@ const eliminarCancha = async (req, res = response) => {
     const canchaConf = cancha.nombre;
     await Cancha.findByIdAndDelete(canchaId);
 
-    // ✅ Eliminamos la configuración relacionada
+    // Eliminamos la configuración relacionada
     await Configuracion.deleteOne({ nombre: canchaConf });
 
     res.json({
@@ -143,7 +144,7 @@ const eliminarCancha = async (req, res = response) => {
       msg: `la cancha ${cancha.nombre} fue eliminada`,
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -175,7 +176,7 @@ const getCancha = async (req, res = response) => {
       msg: "Traigo todas las canchas",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
@@ -204,7 +205,7 @@ const getCanchaPorNombre = async (req, res = response) => {
       msg: "Traigo cancha",
     });
   } catch (error) {
-    console.log({ error });
+    logger.error(error);
     res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
