@@ -9,3 +9,7 @@
     at processIncomingData (C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongodb\lib\cmap\message_stream.js:124:16)
     at MessageStream._write (C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongodb\lib\cmap\message_stream.js:33:9)
     at writeOrBuffer (node:internal/streams/writable:572:12)
+[2025-06-30 14:13:24] ERROR: MongooseError: Operation `usuarios.findOne()` buffering timed out after 10000ms
+    at Timeout.<anonymous> (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\drivers\node-mongodb-native\collection.js:186:23)
+    at listOnTimeout (node:internal/timers:588:17)
+    at process.processTimers (node:internal/timers:523:7)
