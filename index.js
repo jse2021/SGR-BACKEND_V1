@@ -19,17 +19,12 @@ const allowedOrigins = [
   "https://sgr-frontend-v1-p5st-dxqp46ibl-jse2021s-projects.vercel.app"
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error("CORS not allowed for origin: " + origin));
-    }
-  },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-token"],
-}));
+app.options('*', (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-token");
+  res.sendStatus(204);
+});
 
 // 🔥 Muy importante: manejar también las preflight requests
 app.options('*', cors());
