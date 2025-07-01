@@ -14,6 +14,12 @@ const {
   buscarUsuarios,
 } = require("../controllers/auth");
 
+router.get("/", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    msg: "API Auth activa 🚀"
+  });
+});
 router.post(
   "/new",
   [
