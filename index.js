@@ -26,10 +26,6 @@ app.options('*', (req, res) => {
   res.sendStatus(204);
 });
 
-// 🔥 Muy importante: manejar también las preflight requests
-app.options('*', cors());
-
-
 // DIRECTORIO PUBLICO
 app.use(express.static('public'));
 
