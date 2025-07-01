@@ -12,12 +12,14 @@ dbConection()       ;
 
 // CORS
 // app.use(cors());
+
 app.use(cors({
   origin: [
-    "https://sgr-frontend-v1-p5st.vercel.app", // ✅ frontend en Vercel
-    "http://localhost:5173",                   // ✅ para desarrollo local
+    "https://sgr-frontend-v1-p5st.vercel.app", // ✅ tu frontend en Vercel
+    "http://localhost:5173"                    // ✅ tu entorno local de desarrollo
   ],
-  credentials: true, // solo si usás cookies (opcional)
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-token"],
 }));
 
 
