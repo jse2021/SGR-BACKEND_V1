@@ -16,7 +16,7 @@ dbConection()       ;
 // =======================
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://sgr-frontend-v1-p5st-dxqp46ibl-jse2021s-projects.vercel.app"
+  "https://sgr-frontend-v1-p5st.vercel.app"
 ];
 
 // Middleware global para CORS correcto
