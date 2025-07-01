@@ -11,9 +11,7 @@ dbConection()       ;
 // CORS
 // app.use(cors());
 
-// =======================
-// ✅ CORS para dev y producción
-// =======================
+
 const allowedOrigins = [
   "http://localhost:5173",
   "https://sgr-frontend-v1-p5st.vercel.app"
@@ -21,6 +19,7 @@ const allowedOrigins = [
 
 // Middleware global para CORS correcto
 app.use((req, res, next) => {
+  console.log("🌐 Headers:", req.headers); // ✅ Acá sí funciona
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -36,9 +35,6 @@ app.use((req, res, next) => {
 
   next();
 });
-
-
-
 
 // DIRECTORIO PUBLICO
 app.use(express.static('public'));
