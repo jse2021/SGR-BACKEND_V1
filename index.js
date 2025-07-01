@@ -15,8 +15,8 @@ dbConection()       ;
 
 app.use(cors({
   origin: [
-    "https://sgr-frontend-v1-p5st.vercel.app", // ✅ tu frontend en Vercel
-    "http://localhost:5173"                    // ✅ tu entorno local de desarrollo
+    "https://sgr-frontend-v1-p5st-9n10tii79-jse2021s-projects.vercel.app", // ✅ TU dominio de Vercel exacto
+    "http://localhost:5173", // ✅ para desarrollo local
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization", "x-token"],
