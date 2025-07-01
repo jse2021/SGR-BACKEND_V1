@@ -13,14 +13,26 @@ dbConection()       ;
 // CORS
 // app.use(cors());
 
+// ✅ CORS CORRECTO Y ROBUSTO
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://sgr-frontend-v1-p5st-dxqp46ibl-jse2021s-projects.vercel.app"
+];
+
 app.use(cors({
-  origin: [
-    "https://sgr-frontend-v1-p5st-9n10tii79-jse2021s-projects.vercel.app", // ✅ TU dominio de Vercel exacto
-    "http://localhost:5173", // ✅ para desarrollo local
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("CORS not allowed for origin: " + origin));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-token"],
 }));
+
+// 🔥 Muy importante: manejar también las preflight requests
+app.options('*', cors());
 
 
 // DIRECTORIO PUBLICO
