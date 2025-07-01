@@ -11,7 +11,11 @@ dbConection()       ;
 
 
 // CORS
-app.use(cors());
+// app.use(cors());
+app.use(cors({
+  origin: ['https://sgr-frontend.vercel.app'], // Esto permite que las peticiones del frontend lleguen al backend.
+  credentials: true,
+}));
 
 
 // DIRECTORIO PUBLICO
