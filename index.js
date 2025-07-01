@@ -17,18 +17,27 @@ const allowedOrigins = [
   "https://sgr-frontend-v1-p5st.vercel.app"
 ];
 
-// Middleware global para CORS correcto
+// ================================
+// ✅ CORS DEFINITIVO para Render + Vercel + Localhost
+// ================================
+
 app.use((req, res, next) => {
-  console.log("🌐 Headers:", req.headers); // ✅ Acá sí funciona
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
+  const origin = req.headers.origin || "";
+  
+  // ✅ Permitimos localhost y cualquier subdominio vercel.app
+  const isAllowed =
+    origin.startsWith("http://localhost:5173") ||
+    origin.endsWith(".vercel.app");
+
+  if (isAllowed) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
+
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-token");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  // ⚠️ Detener la respuesta para solicitudes preflight
+  // ✅ Importante: manejar preflight
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
   }
