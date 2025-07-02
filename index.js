@@ -11,35 +11,23 @@ dbConection();
 // =======================
 // ✅ CORS DEFINITIVO para Localhost + Vercel
 // =======================
+
+// CORRECTO Y TESTEADO
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://sgr-frontend-v1-p5st.vercel.app"
+];
+
 app.use((req, res, next) => {
-  const origin = req.headers.origin || '';
-
-  let isAllowed = false;
-
-  // Permitir localhost
-  if (origin.startsWith('http://localhost:5173')) {
-    isAllowed = true;
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
   }
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-token");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  // Permitir *.vercel.app usando expresión regular defensiva
-  try {
-    const hostname = new URL(origin).hostname;
-    if (hostname.endsWith('.vercel.app')) {
-      isAllowed = true;
-    }
-  } catch (err) {
-    // no hacer nada si new URL falla
-  }
-
-  if (isAllowed) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-token');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return res.sendStatus(204);
   }
 
