@@ -12,27 +12,40 @@ dbConection();
 // ✅ CORS DEFINITIVO para Localhost + Vercel
 // =======================
 app.use((req, res, next) => {
-  const origin = req.headers.origin || "";
+  const origin = req.headers.origin || '';
 
-  // Permitir localhost y cualquier subdominio *.vercel.app
-  const isAllowed =
-    origin.startsWith("http://localhost:5173") ||
-    /\.vercel\.app$/.test(new URL(origin).hostname);
+  let isAllowed = false;
 
-  if (isAllowed) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
+  // Permitir localhost
+  if (origin.startsWith('http://localhost:5173')) {
+    isAllowed = true;
   }
 
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-token");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
+  // Permitir *.vercel.app usando expresión regular defensiva
+  try {
+    const hostname = new URL(origin).hostname;
+    if (hostname.endsWith('.vercel.app')) {
+      isAllowed = true;
+    }
+  } catch (err) {
+    // no hacer nada si new URL falla
+  }
 
-  if (req.method === "OPTIONS") {
+  if (isAllowed) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-token');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
 
   next();
 });
+
 
 // DIRECTORIO PUBLICO
 app.use(express.static('public'));
