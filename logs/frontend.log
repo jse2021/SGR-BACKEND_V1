@@ -10,3 +10,13 @@
     at Timeout.<anonymous> (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\drivers\node-mongodb-native\collection.js:186:23)
     at listOnTimeout (node:internal/timers:588:17)
     at process.processTimers (node:internal/timers:523:7)
+[2025-07-10 13:44:48] ERROR: CastError: Cast to date failed for value "Invalid Date" (type Date) at path "fecha" for model "Reserva"
+    at SchemaDate.cast (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\schema\date.js:376:11)
+    at SchemaDate.handleSingle (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\schema\date.js:388:15)
+    at SchemaDate.castForQuery (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\schema\date.js:419:18)
+    at cast (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\cast.js:334:39)
+    at Query.cast (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\query.js:4900:12)
+    at model.Query._countDocuments (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\query.js:2636:10)
+    at model.Query.exec (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\query.js:4419:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async getReservaClienteRango (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:423:19)

@@ -12,6 +12,7 @@ const {
   enviarCorreoReservaActualizada,
   enviarCorreoReservaEliminada,
 } = require("../helpers/mailer");
+const { Console } = require("winston/lib/winston/transports");
 
 /**
  * CREAR RESERVAS
@@ -881,142 +882,64 @@ const estadoRecaudacion = async (req, res = response) => {
  */
 const recaudacionFormasDePago = async (req, res = response) => {
   const { fechaCopia, cancha, forma_pago, estado_pago } = req.params;
-  let monto_consolidado = 0;
-  let sena_consolidada = 0;
-  let cantidad_señas = 0;
-  let cantidad_monto = 0;
+
+  // Parámetros de paginación (con valores por defecto)
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const skip = (page - 1) * limit;
 
   try {
-    // Obtiene las reservas con filtros fecha, cancha, forma_pago, estado_pago
-    const reservasRegistradas = await Reserva.find({
-      fecha: fechaCopia,
-      cancha,
-      forma_pago,
-      estado_pago,
-    });
+    // Construcción dinámica del filtro
+    const filters = { fecha: fechaCopia };
 
-    //obtiene las reservas de todas las canchas
-    const reservasfiltroCancha = await Reserva.find({
-      fecha: fechaCopia,
-      forma_pago,
-      estado_pago,
-    });
+    if (cancha !== "TODAS") filters.cancha = cancha;
+    if (forma_pago !== "TODAS") filters.forma_pago = forma_pago;
+    if (estado_pago !== "TODAS") filters.estado_pago = estado_pago;
 
-    // obtiene las reservas con todos los pagos
-    const reservasfiltroPagos = await Reserva.find({
-      fecha: fechaCopia,
-      cancha,
-      estado_pago,
-    });
+    // Conteo total de resultados sin paginar
+    const totalItems = await Reserva.countDocuments(filters);
 
-    // Obtiene las reservas con filtros fecha, cancha, forma_pago, estado_pago
-    const reservasfiltroPagosCancha = await Reserva.find({
-      fecha: fechaCopia,
-      estado_pago,
-    });
-
-    //Obtengo si existen señas
-    const senas = reservasRegistradas.filter(
-      (reserva) => reserva.estado_pago === "SEÑA"
-    );
-    cantidad_señas = senas.length;
-
-    //Obtengo si existen montos
-    const monto = reservasRegistradas.filter(
-      (reserva) => reserva.estado_pago === "TOTAL"
-    );
-    cantidad_monto = monto.length;
-
-    if (forma_pago === "TODAS" && cancha === "TODAS") {
-      // aplico filtro sin la cancha
-      const resumenFiltro4 = reservasfiltroPagosCancha.map((reserva) => {
-        return {
-          Fecha: reserva.fechaCopia,
-          Hora: reserva.hora,
-          Cancha: reserva.cancha,
-          Monto: reserva.monto_cancha,
-          Seña: reserva.monto_sena,
-          Forma_Pago: reserva.forma_pago,
-          Usuario: reserva.user,
-        };
-      });
-      return res.status(200).json({
-        ok: true,
-        resumenFiltro4,
-        msg: "Listado de reservas",
+    if (totalItems === 0) {
+      return res.status(404).json({
+        ok: false,
+        msg: "No se encontraron reservas para los filtros seleccionados",
       });
     }
 
-    if (cancha === "TODAS") {
-      // aplico filtro sin la cancha
-      const resumenFiltro2 = reservasfiltroCancha.map((reserva) => {
-        return {
-          Fecha: reserva.fechaCopia,
-          Hora: reserva.hora,
-          Cancha: reserva.cancha,
-          Monto: reserva.monto_cancha,
-          Seña: reserva.monto_sena,
-          Forma_Pago: reserva.forma_pago,
-          Usuario: reserva.user,
-        };
-      });
-      return res.status(200).json({
-        ok: true,
-        resumenFiltro2,
-        msg: "Listado de reservas",
-      });
-    }
+    // Consulta paginada
+    const reservas = await Reserva.find(filters)
+      .sort({ hora: 1 }) // Ordena por horario
+      .skip(skip)
+      .limit(limit);
 
-    if (forma_pago === "TODAS") {
-      // aplico filtro sin la cancha
-      const resumenFiltro3 = reservasfiltroPagos.map((reserva) => {
-        return {
-          Fecha: reserva.fechaCopia,
-          Hora: reserva.hora,
-          Cancha: reserva.cancha,
-          Monto: reserva.monto_cancha,
-          Seña: reserva.monto_sena,
-          Forma_Pago: reserva.forma_pago,
-          Usuario: reserva.user,
-        };
-      });
-      return res.status(200).json({
-        ok: true,
-        resumenFiltro3,
-        msg: "Listado de reservas",
-      });
-    }
-
-    // funcion con filtro cancha
-    const resumenListado = reservasRegistradas.map((reserva) => {
-      monto_consolidado = reserva.monto_cancha + monto_consolidado;
-      sena_consolidada = reserva.monto_sena + sena_consolidada;
-
-      // 6512e98e2f6de162adacc1d3
-      return {
-        Fecha: reserva.fechaCopia,
-        Hora: reserva.hora,
-        Cancha: reserva.cancha,
-        Monto: reserva.monto_cancha,
-        Seña: reserva.monto_sena,
-        Forma_Pago: reserva.forma_pago,
-        Usuario: reserva.user,
-      };
-    });
+    // Resumen de los datos obtenidos
+    const resumen = reservas.map((reserva) => ({
+      Fecha: reserva.fechaCopia,
+      Hora: reserva.hora,
+      Cancha: reserva.cancha,
+      Monto: reserva.monto_cancha,
+      Seña: reserva.monto_sena,
+      Forma_Pago: reserva.forma_pago,
+      Usuario: reserva.user,
+    }));
 
     return res.status(200).json({
       ok: true,
-      resumenListado,
       msg: "Listado de reservas",
+      page,
+      totalPages: Math.ceil(totalItems / limit),
+      totalItems,
+      resumen,
     });
   } catch (error) {
-    logger.error(error);
+    console.error("Error en recaudacionFormasDePago:", error);
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
     });
   }
 };
+
 
 module.exports = {
   getReserva,
