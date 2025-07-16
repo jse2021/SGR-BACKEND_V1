@@ -902,6 +902,8 @@ const recaudacionFormasDePago = async (req, res = response) => {
     if (totalItems === 0) {
       return res.status(404).json({
         ok: false,
+        reservas: [],
+        totalPages: 1,
         msg: "No se encontraron reservas para los filtros seleccionados",
       });
     }
@@ -920,6 +922,9 @@ const recaudacionFormasDePago = async (req, res = response) => {
       Monto: reserva.monto_cancha,
       Seña: reserva.monto_sena,
       Forma_Pago: reserva.forma_pago,
+      Estado_Pago: reserva.estado_pago,
+      Nombre: reserva.nombreCliente,
+      Apellido: reserva.apellidoCliente,
       Usuario: reserva.user,
     }));
 
@@ -939,7 +944,6 @@ const recaudacionFormasDePago = async (req, res = response) => {
     });
   }
 };
-
 
 module.exports = {
   getReserva,
