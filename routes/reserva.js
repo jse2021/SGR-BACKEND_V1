@@ -49,18 +49,17 @@ router.post("/horarios-disponibles", validarJWT, obtenerHorasDisponibles);
 router.post("/obtener-monto", validarJWT, obtenerMontoPorEstado);
 
 // Obtener Reservas
-// router.get("/:fechaCopia/:cancha", getCanchaHora);
-router.get("/:fecha/:cancha", getReservaFechaCancha);
+//RUTAS ESPECIFICAS
 router.get(
   "/:fechaCopia/:cancha/:forma_pago/:estado_pago",
   recaudacionFormasDePago
 );
-router.get("/:cancha/:fechaCopia", estadoRecaudacion);
-// router.get("/:estado_pago/:fechaIni/:fechaFin", estadoReservasPorFecha);
-router.get("/", getReserva);
-router.get("/:fechaCopia", getReservaFecha);
-
+router.get("/:fecha/:cancha", getReservaFechaCancha);
+router.get("/recaudacion/:cancha/:fechaCopia", estadoRecaudacion);
 router.get("/:cliente/:fechaIni/:fechaFin", getReservaClienteRango);
+//RUTAS GENERICAS
+router.get("/:fechaCopia", getReservaFecha);
+router.get("/", getReserva);
 
 // actualizar Reserva
 router.put("/:id", actualizarReserva);

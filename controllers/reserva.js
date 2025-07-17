@@ -746,126 +746,74 @@ const eliminarReserva = async (req, res = response) => {
  * REPORTE: RECAUDACION, FILTRO POR FECHA Y CANCHA- CALCULAR MONTO TOTAL DEL CONSOLIDADO - CALCULAR MONTO DEUDA
  */
 const estadoRecaudacion = async (req, res = response) => {
-  const { cancha, fechaCopia } = req.params;
-
-  let cantidadFechasIguales = 0;
-  let cantidadMontoCero = 0;
-  let cantidadMontoCeroSenas = 0;
+  const { fechaCopia, cancha } = req.params;
 
   try {
-    // Obtengo el precio de la cancha
-    const precioCancha = await Configuracion.find({
-      nombre: cancha,
-    });
-    const montoCancha = precioCancha?.[0]?.monto_cancha;
-
-    // Obtiene las reservas en el rango de fechas especificado
+    // 🔍 Buscar reservas filtradas por fecha y cancha
     const reservasRegistradas = await Reserva.find({
-      cancha,
       fecha: fechaCopia,
+      cancha,
     });
 
-    if (!reservasRegistradas[0]) {
-      return res.status(400).json({
+    if (reservasRegistradas.length === 0) {
+      return res.status(404).json({
         ok: false,
-        msg: "No existen reservas para la cancha indicada o fecha",
-      });
-    } else {
-      // saber cuantas fechas iguales existen
-      const fechasIguales = reservasRegistradas.filter(
-        (reserva) => reserva.fechaCopia === reserva.fechaCopia
-      );
-      cantidadFechasIguales = fechasIguales.length;
-
-      //saber cuantas reservas de la fecha tienen monto_cancha = 0
-      const montoCero = reservasRegistradas.filter(
-        (reserva) =>
-          reserva.fechaCopia === reserva.fechaCopia &&
-          reserva.monto_cancha === 0
-      );
-      cantidadMontoCero = montoCero.length;
-
-      //saber cuantas reservas de la fecha tienen monto_senas = 0
-      const montoCeroSenas = reservasRegistradas.filter(
-        (reserva) =>
-          reserva.fechaCopia === reserva.fechaCopia && reserva.monto_sena === 0
-      );
-      cantidadMontoCeroSenas = montoCeroSenas.length;
-
-      const resumen = reservasRegistradas.reduce(
-        (total, reserva) => {
-          total.monto_consolidado += reserva.monto_cancha;
-          total.senas_consolidadas += reserva.monto_sena;
-
-          /**
-           * CUANDO SOLO EXISTE  MONTO CANCHA
-           */
-          if (cantidadMontoCero == 0 && cantidadMontoCeroSenas > 0) {
-            total.monto_deuda = total.senas_consolidadas;
-          }
-
-          /**
-           * CUANDO SOLO EXISTEN SEÑAS
-           */
-          if (cantidadMontoCero > 0 && cantidadMontoCeroSenas == 0) {
-            total.monto_deuda =
-              montoCancha * cantidadMontoCero - total.senas_consolidadas;
-          }
-
-          /**
-           * SI MONTO_CONSOLIDADO === SENAS_CONSOLIDADAS Y CANT_MONTO_CONSOLIDADO > 0 OK
-           */
-          if (
-            total.monto_consolidado === total.senas_consolidadas &&
-            cantidadMontoCero > 0
-          ) {
-            total.monto_deuda =
-              montoCancha * cantidadMontoCero - total.senas_consolidadas;
-          }
-
-          /**
-           * SI MONTO_CONSOLIDADO > SENAS_CONSOLIDADAS Y CANT_MONTO_CONSOLIDADO > 0 OK
-           */
-          if (
-            total.monto_consolidado > total.senas_consolidadas &&
-            cantidadMontoCero > 0
-          ) {
-            total.monto_deuda =
-              montoCancha * cantidadMontoCero - total.senas_consolidadas;
-          }
-
-          /**
-           * SI MONTO_CONSOLIDADO < SENAS_CONSOLIDADAS Y CANT_MONTO_CONSOLIDADO > 0 OK
-           */
-          if (
-            total.monto_consolidado < total.senas_consolidadas &&
-            cantidadMontoCero > 0
-          ) {
-            total.monto_deuda =
-              montoCancha * cantidadMontoCero - total.senas_consolidadas;
-          }
-
-          return total;
-        },
-        {
-          Fecha: fechaCopia,
-          Cancha: cancha,
-          monto_consolidado: 0,
-          senas_consolidadas: 0,
-          monto_deuda: 0,
-        }
-      );
-      return res.status(200).json({
-        ok: true,
-        resumen,
-        msg: "Estado de las reservas",
+        msg: "No se encontraron reservas para los filtros seleccionados",
       });
     }
+
+    // 🔍 Buscar el precio de la cancha seleccionada
+    const canchaConfig = await Configuracion.findOne({ nombre: cancha });
+
+    if (!canchaConfig || typeof canchaConfig.monto_cancha !== "number") {
+      return res.status(400).json({
+        ok: false,
+        msg: "No se encontró la configuración de precio para la cancha seleccionada",
+      });
+    }
+
+    const montoCancha = canchaConfig.monto_cancha;
+
+    //Calcular la cantidad de reservas en ese día
+    const cantidadFechasIguales = reservasRegistradas.length;
+
+    // Calcular los montos consolidados y señas
+    const resumen = reservasRegistradas.reduce(
+      (totales, reserva) => {
+        const monto = reserva.monto_cancha || 0;
+        const sena = reserva.monto_sena || 0;
+
+        totales.monto_consolidado += monto;
+        totales.senas_consolidadas += sena;
+
+        return totales;
+      },
+      {
+        Fecha: fechaCopia,
+        Cancha: cancha,
+        monto_consolidado: 0,
+        senas_consolidadas: 0,
+        monto_deuda: 0,
+      }
+    );
+
+    // Cálculo del monto esperado por reservas
+    const montoEsperado = montoCancha * cantidadFechasIguales;
+
+    // Calcular la deuda como la diferencia entre lo esperado y lo recaudado
+    resumen.monto_deuda =
+      montoEsperado - resumen.monto_consolidado - resumen.senas_consolidadas;
+
+    return res.status(200).json({
+      ok: true,
+      resumen,
+      msg: "Resumen de recaudación generado correctamente",
+    });
   } catch (error) {
-    logger.error(error);
+    console.error("Error en estadoRecaudacion:", error);
     return res.status(500).json({
       ok: false,
-      msg: "Consulte con el administrador",
+      msg: "Error al calcular el estado de recaudación",
     });
   }
 };
