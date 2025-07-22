@@ -50,13 +50,14 @@ router.post("/obtener-monto", validarJWT, obtenerMontoPorEstado);
 
 // Obtener Reservas
 //RUTAS ESPECIFICAS
+router.get("/recaudacion/:cancha/:fechaIni/:fechaFin", estadoRecaudacion);
 router.get(
   "/:fechaCopia/:cancha/:forma_pago/:estado_pago",
   recaudacionFormasDePago
 );
-router.get("/:fecha/:cancha", getReservaFechaCancha);
-router.get("/recaudacion/:cancha/:fechaCopia", estadoRecaudacion);
 router.get("/:cliente/:fechaIni/:fechaFin", getReservaClienteRango);
+router.get("/:fecha/:cancha", getReservaFechaCancha);
+
 //RUTAS GENERICAS
 router.get("/:fechaCopia", getReservaFecha);
 router.get("/", getReserva);
@@ -68,3 +69,4 @@ router.put("/:id", actualizarReserva);
 router.delete("/:id", eliminarReserva);
 
 module.exports = router;
+// router.get("/recaudacion/:cancha/:fechaCopia", estadoRecaudacion);
