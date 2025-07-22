@@ -12,7 +12,7 @@ const {
   getReservaClienteRango,
   actualizarReserva,
   eliminarReserva,
-  //   estadoReservasPorFecha,
+  estadoReservasRango,
   estadoRecaudacion,
   recaudacionFormasDePago,
   getCanchaHora,
@@ -50,11 +50,17 @@ router.post("/obtener-monto", validarJWT, obtenerMontoPorEstado);
 
 // Obtener Reservas
 //RUTAS ESPECIFICAS
+
 router.get("/recaudacion/:cancha/:fechaIni/:fechaFin", estadoRecaudacion);
+router.get(
+  "/estadoReservas/:estado_pago/:fechaIni/:fechaFin",
+  estadoReservasRango
+);
 router.get(
   "/:fechaCopia/:cancha/:forma_pago/:estado_pago",
   recaudacionFormasDePago
 );
+
 router.get("/:cliente/:fechaIni/:fechaFin", getReservaClienteRango);
 router.get("/:fecha/:cancha", getReservaFechaCancha);
 

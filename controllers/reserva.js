@@ -654,93 +654,93 @@ const eliminarReserva = async (req, res = response) => {
     });
   }
 };
-
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------
 /**
  * SECCION REPORTES
  */
 /**
  * REPORTE: CONSULTAR EL ESTADO DE LAS RESERVAS FILTRADO POR ESTADO DE PAGO Y RANGO DE FECHAS
  */
-// const estadoReservasPorFecha = async (req, res = response) => {
-//   const { estado_pago, fechaIni, fechaFin } = req.params;
+const estadoReservasRango = async (req, res = response) => {
+  const { estado_pago, fechaIni, fechaFin } = req.params;
 
-//   // Valida los parámetros de entrada
-//   if (!fechaIni || !fechaFin) {
-//     return res.status(400).json({
-//       ok: false,
-//       msg: "Debe especificar las fechas de inicio y fin",
-//     });
-//   }
-//   try {
-//     const rangoFechas = {
-//       $gte: new Date(fechaIni),
-//       $lte: new Date(fechaFin),
-//     };
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
 
-//     // Obtiene las reservas en el rango de fechas especificado
-//     const estadoReservas = await Reserva.find({
-//       estado_pago,
-//       fecha: rangoFechas,
-//     });
+  if (!fechaIni || !fechaFin) {
+    return res.status(400).json({
+      ok: false,
+      msg: "Debe especificar las fechas de inicio y fin",
+    });
+  }
 
-//     // Formatea los resultados de la consulta
-//     const reservasFormateadas = estadoReservas.map((reserva) => {
-//       if (estado_pago === "TOTAL") {
-//         return {
-//           nombre: reserva.nombreCliente,
-//           apellido: reserva.apellidoCliente,
-//           fecha: reserva.fechaCopia,
-//           cancha: reserva.cancha,
-//           estado: reserva.estado_pago,
-//           monto_total: reserva.monto_cancha,
-//           // monto_sena: reserva.monto_sena
-//         };
-//       }
-//       if (estado_pago === "SEÑA") {
-//         return {
-//           nombre: reserva.nombreCliente,
-//           apellido: reserva.apellidoCliente,
-//           fecha: reserva.fechaCopia,
-//           cancha: reserva.cancha,
-//           estado: reserva.estado_pago,
-//           // monto_total: reserva.monto_cancha,
-//           monto_sena: reserva.monto_sena,
-//         };
-//       }
-//       if (estado_pago === "IMPAGO") {
-//         return {
-//           nombre: reserva.nombreCliente,
-//           apellido: reserva.apellidoCliente,
-//           fecha: reserva.fechaCopia,
-//           cancha: reserva.cancha,
-//           estado: reserva.estado_pago,
-//           // monto_total: reserva.monto_cancha,
-//           // monto_sena: reserva.monto_sena
-//         };
-//       }
-//     });
+  try {
+    const rangoFechas = {
+      $gte: new Date(fechaIni),
+      $lte: new Date(fechaFin),
+    };
 
-//     // Valida si se encontraron reservas
-//     if (!reservasFormateadas.length) {
-//       return res.status(404).json({
-//         ok: false,
-//         msg: "No se encontraron reservas en el rango de fechas especificado",
-//       });
-//     }
+    // Filtrar reservas según estado y rango
+    const filter = {
+      estado_pago,
+      fecha: rangoFechas,
+    };
 
-//     return res.status(200).json({
-//       ok: true,
-//       reservasFormateadas,
-//       msg: "Estado de las reservas",
-//     });
-//   } catch (error) {
-//     console.log({ error });
-//     return res.status(500).json({
-//       ok: false,
-//       msg: "Consulte con el administrador",
-//     });
-//   }
-// };
+    const totalItems = await Reserva.countDocuments(filter);
+
+    if (totalItems === 0) {
+      return res.status(404).json({
+        ok: false,
+        msg: "No se encontraron reservas en el rango de fechas especificado",
+        reservasFormateadas: [],
+        totalPages: 1,
+      });
+    }
+
+    const estadoReservas = await Reserva.find(filter)
+      .skip(skip)
+      .limit(limit)
+      .sort({ fecha: 1 });
+
+    const reservasFormateadas = estadoReservas.map((reserva) => {
+      const base = {
+        nombre: reserva.nombreCliente,
+        apellido: reserva.apellidoCliente,
+        fecha: reserva.fechaCopia,
+        cancha: reserva.cancha,
+        hora: reserva.hora,
+        estado: reserva.estado_pago,
+      };
+
+      switch (estado_pago) {
+        case "TOTAL":
+          return { ...base, monto_total: reserva.monto_cancha };
+        case "SEÑA":
+          return { ...base, monto_sena: reserva.monto_sena };
+        case "IMPAGO":
+          return base;
+        default:
+          return null;
+      }
+    });
+
+    return res.status(200).json({
+      ok: true,
+      reservasFormateadas,
+      page,
+      totalPages: Math.ceil(totalItems / limit),
+      totalItems,
+      msg: "Estado de las reservas",
+    });
+  } catch (error) {
+    console.log({ error });
+    return res.status(500).json({
+      ok: false,
+      msg: "Consulte con el administrador",
+    });
+  }
+};
 
 /**
  * REPORTE: RECAUDACION, FILTRO POR FECHA Y CANCHA- CALCULAR MONTO TOTAL DEL CONSOLIDADO - CALCULAR MONTO DEUDA
@@ -843,81 +843,6 @@ const estadoRecaudacion = async (req, res = response) => {
   }
 };
 
-// const estadoRecaudacion = async (req, res = response) => {
-//   const { fechaCopia, cancha } = req.params;
-//   const page = parseInt(req.query.page) || 1;
-//   const limit = 10;
-//   const skip = (page - 1) * limit;
-
-//   try {
-//     // 🔍 Buscar todas las reservas de esa fecha y cancha
-//     const reservasRegistradas = await Reserva.find({
-//       fecha: fechaCopia,
-//       cancha,
-//     });
-
-//     if (reservasRegistradas.length === 0) {
-//       return res.status(404).json({
-//         ok: false,
-//         msg: "No se encontraron reservas para los filtros seleccionados",
-//       });
-//     }
-
-//     // 🔍 Buscar el precio de la cancha
-//     const canchaConfig = await Configuracion.findOne({ nombre: cancha });
-
-//     if (!canchaConfig || typeof canchaConfig.monto_cancha !== "number") {
-//       return res.status(400).json({
-//         ok: false,
-//         msg: "No se encontró la configuración de precio para la cancha seleccionada",
-//       });
-//     }
-
-//     const montoCancha = canchaConfig.monto_cancha;
-
-//     // 📊 Calcular montos
-//     const cantidadFechasIguales = reservasRegistradas.length;
-//     const resumen = reservasRegistradas.reduce(
-//       (totales, reserva) => {
-//         totales.monto_consolidado += reserva.monto_cancha || 0;
-//         totales.senas_consolidadas += reserva.monto_sena || 0;
-//         return totales;
-//       },
-//       {
-//         Fecha: fechaCopia,
-//         Cancha: cancha,
-//         monto_consolidado: 0,
-//         senas_consolidadas: 0,
-//         monto_deuda: 0,
-//       }
-//     );
-
-//     // 🧮 Calcular deuda esperada
-//     const montoEsperado = montoCancha * cantidadFechasIguales;
-//     resumen.monto_deuda =
-//       montoEsperado - resumen.monto_consolidado - resumen.senas_consolidadas;
-
-//     // 📄 Paginar resultados para mostrar en tabla
-//     const reservasPaginadas = reservasRegistradas.slice(skip, skip + limit);
-//     const totalPaginas = Math.ceil(reservasRegistradas.length / limit);
-
-//     return res.status(200).json({
-//       ok: true,
-//       resumen,
-//       reservas: reservasPaginadas,
-//       totalPaginas,
-//       paginaActual: page,
-//       msg: "Resumen de recaudación generado correctamente",
-//     });
-//   } catch (error) {
-//     console.error("Error en estadoRecaudacion:", error);
-//     return res.status(500).json({
-//       ok: false,
-//       msg: "Error al calcular el estado de recaudación",
-//     });
-//   }
-// };
-
 /**
  * REPORTE: RECAUDACION CON FORMAS DE PAGO
  * 1- deberá tener parametros : fecha, cancha, forma_pago, estado_pago
@@ -1001,7 +926,7 @@ module.exports = {
   crearReserva,
   actualizarReserva,
   eliminarReserva,
-  // estadoReservasPorFecha,
+  estadoReservasRango,
   estadoRecaudacion,
   recaudacionFormasDePago,
   getCanchaHora,
