@@ -13,49 +13,49 @@ dbConection();
 // CORS DEFINITIVO para Localhost + Vercel
 // =======================
 
-// const allowedOrigins = [
-//   "http://localhost:5173",
-//   "https://sgr-frontend-v1-p5st.vercel.app",
-// ];
-
-// app.use((req, res, next) => {
-//   const origin = req.headers.origin;
-//   if (allowedOrigins.includes(origin)) {
-//     res.setHeader("Access-Control-Allow-Origin", origin);
-//   }
-//   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-//   res.setHeader(
-//     "Access-Control-Allow-Headers",
-//     "Content-Type, Authorization, x-token"
-//   );
-//   res.setHeader("Access-Control-Allow-Credentials", "true");
-
-//   if (req.method === "OPTIONS") {
-//     return res.sendStatus(204);
-//   }
-
-//   next();
-// });
 const allowedOrigins = [
   "http://localhost:5173",
   "https://sgr-frontend-v1-p5st.vercel.app",
 ];
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  methods: "GET,POST,PUT,DELETE,OPTIONS",
-  allowedHeaders: ["Content-Type", "Authorization", "x-token"],
-  credentials: true,
-  optionsSuccessStatus: 204,
-};
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, x-token"
+  );
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
-app.use(cors(corsOptions));
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+// const allowedOrigins = [
+//   "http://localhost:5173",
+//   "https://sgr-frontend-v1-p5st.vercel.app",
+// ];
+
+// const corsOptions = {
+//   origin: function (origin, callback) {
+//     if (!origin || allowedOrigins.includes(origin)) {
+//       callback(null, true);
+//     } else {
+//       callback(new Error("Not allowed by CORS"));
+//     }
+//   },
+//   methods: "GET,POST,PUT,DELETE,OPTIONS",
+//   allowedHeaders: ["Content-Type", "Authorization", "x-token"],
+//   credentials: true,
+//   optionsSuccessStatus: 204,
+// };
+
+// app.use(cors(corsOptions));
 
 // DIRECTORIO PUBLICO
 app.use(express.static("public"));
