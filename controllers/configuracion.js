@@ -49,6 +49,7 @@ const crearMontoCancha = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 
 /**
  * TRAER TODAS LAS CONFIGURACIONES DE UNA CANCHA ESPECIFICA
@@ -76,6 +77,7 @@ const getMontoCanchas = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 /**
  * TRAIGO CONFIGURACION POR ID
  */
@@ -118,6 +120,7 @@ const getMontoCanchaId = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 /**
  * TRAER TODAS LAS CANCHAS CON PRECIOS
  */
@@ -149,6 +152,7 @@ const getCanchasPrecio = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 /**
  * ACTUALIZAR LAS CANCHAS
  */

@@ -53,7 +53,7 @@ const crearReserva = async (req, res = response) => {
           new Date(fechaRequest).toISOString().slice(0, 10) &&
         r.cancha === canchaRequest
     );
-    const token = req.header("x-token"); // Asegurate que venga desde el frontend
+    const token = req.header("x-token");
 
     // LLAMADO INTERNO AL ENDPOINT obtenerMontoPorEstado
     const { data } = await axios.post(
@@ -64,7 +64,7 @@ const crearReserva = async (req, res = response) => {
       },
       {
         headers: {
-          "x-token": token, // pasás el mismo token que se usó para autenticar la petición original
+          "x-token": token,
         },
       }
     );
@@ -358,51 +358,9 @@ const getReservaFechaCancha = async (req, res = response) => {
   }
 };
 
-// const getReservaFechaCancha = async (req, res = response) => {
-//   const { fecha, cancha } = req.params;
-//   const page = parseInt(req.query.page) || 1;
-//   const limit = parseInt(req.query.limit) || 10;
-
-//   try {
-//     //uso estas fechas, sin importar el horario.
-//     const fechaInicio = new Date(fecha);
-//     fechaInicio.setUTCHours(0, 0, 0, 0);
-
-//     const fechaFin = new Date(fecha);
-//     fechaFin.setUTCHours(23, 59, 59, 999);
-
-//     // Busca las reservas de la fecha
-//     const reservasFecha = await Reserva.find({
-//       fecha: {
-//         $gte: fechaInicio,
-//         $lt: fechaFin,
-//       },
-//       cancha: cancha,
-//     });
-
-//     if (reservasFecha.length === 0) {
-//       return res.status(400).json({
-//         ok: false,
-//         msg: "No existen reservas asociadas a la fecha",
-//       });
-//     }
-//     return res.status(200).json({
-//       ok: true,
-//       reservasFecha,
-//       msg: "Traigo todas las reservas",
-//     });
-//   } catch (error) {
-//     console.log({ error });
-//     return res.status(500).json({
-//       ok: false,
-//       msg: "Consulte con el administrador",
-//     });
-//   }
-// };
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------
 /**
  * CONSULTAR RESERVA: POR CLIENTE(APELLIDO) EN UN RANGO DE FECHAS
- * 14/05 - PROXIMA IMPLEMENTACION: VER SI PODEMOS CONSULTAR POR NOMBRE, O APELLIDO DEL CLIENTE
  */
 const getReservaClienteRango = async (req, res = response) => {
   const { cliente, fechaIni, fechaFin } = req.params;
@@ -441,41 +399,7 @@ const getReservaClienteRango = async (req, res = response) => {
       msg: "Consulte con el administrador",
     });
   }
-}; // const getReservaClienteRango = async (req, res = response) => {
-//   const { cliente, fechaIni, fechaFin } = req.params;
-
-//   try {
-//     const rangoFechas = {
-//       $gte: new Date(fechaIni),
-//       $lte: new Date(fechaFin),
-//     };
-
-//     // Obtiene las reservas del cliente especificado en el rango de fechas especificado
-//     const reservasCliente = await Reserva.find({
-//       cliente,
-//       fecha: rangoFechas,
-//     });
-
-//     const total = await Reserva.countDocuments
-
-//     if (reservasCliente == "") {
-//       return res.status(400).json({
-//         ok: false,
-//         msg: "No existen reservas para el cliente indicado",
-//       });
-//     }
-//     return res.status(200).json({
-//       ok: true,
-//       reservasCliente,
-//       msg: "Listado de reservas del cliente",
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       ok: false,
-//       msg: "Consulte con el administrador",
-//     });
-//   }
-// };
+};
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -564,7 +488,7 @@ const actualizarReserva = async (req, res = response) => {
       apellidoCliente: nuevaReserva.apellidoCliente,
     };
 
-    //new:true, significa que va a retorar los datos actualizados
+    //new:true, significa que va a retornar los datos actualizados
     const reservaActualizada = await Reserva.findByIdAndUpdate(
       reservaId,
       // nuevaReserva,
@@ -624,7 +548,7 @@ const eliminarReserva = async (req, res = response) => {
       });
     }
 
-    //new:true, significa que va a retorar los datos actualizados
+    //new:true, significa que va a retornar los datos actualizados
     await Reserva.findByIdAndDelete(reservaId);
 
     //Buscar al cliente por ID (que está en reservaActualizada.cliente)
@@ -734,14 +658,13 @@ const estadoReservasRango = async (req, res = response) => {
       msg: "Estado de las reservas",
     });
   } catch (error) {
-    console.log({ error });
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",
     });
   }
 };
-
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------
 /**
  * REPORTE: RECAUDACION, FILTRO POR FECHA Y CANCHA- CALCULAR MONTO TOTAL DEL CONSOLIDADO - CALCULAR MONTO DEUDA
  */
@@ -835,23 +758,15 @@ const estadoRecaudacion = async (req, res = response) => {
       msg: "Resumen de recaudación por rango generado correctamente",
     });
   } catch (error) {
-    console.error("Error en estadoRecaudacionRango:", error);
     return res.status(500).json({
       ok: false,
       msg: "Error al calcular el estado de recaudación por rango",
     });
   }
 };
-
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------
 /**
  * REPORTE: RECAUDACION CON FORMAS DE PAGO
- * 1- deberá tener parametros : fecha, cancha, forma_pago, estado_pago
- * 2- deberá mostrar todas las hora de la fecha indicada
- * 3- de la fecha, discrimina por estado, total, seña, impago
- * 4- deberá mostrar las suma total sea cual sea el caso
- * 5- Formas de pago: Tarjeta, Debito, Efectivo, Transferencia
- * 6- TENDRA DISTINTOS FILTROS COMO CONSULTAR TODAS LAS CANCHAS Y TODAS LAS FORMAS DE PAGO DE UNA FECHA
- * 7-
  */
 const recaudacionFormasDePago = async (req, res = response) => {
   const { fechaCopia, cancha, forma_pago, estado_pago } = req.params;
@@ -910,7 +825,6 @@ const recaudacionFormasDePago = async (req, res = response) => {
       resumen,
     });
   } catch (error) {
-    console.error("Error en recaudacionFormasDePago:", error);
     return res.status(500).json({
       ok: false,
       msg: "Consulte con el administrador",

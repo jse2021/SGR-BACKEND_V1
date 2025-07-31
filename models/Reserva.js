@@ -1,5 +1,4 @@
 const { Schema, model } = require("mongoose");
-// Importamos el modelo Configuracion como referencia
 
 const ReservaSchema = Schema({
   cliente: {
@@ -8,7 +7,7 @@ const ReservaSchema = Schema({
     index: true,
     validate: {
       // La regla de validación se usa para comprobar que el dni es válido
-      // Puede utilizar una expresión regular para comprobar el formato del dni
+
       validator: (value) => {
         return /^[0-9]{8}$/.test(value);
       },

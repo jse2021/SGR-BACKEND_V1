@@ -8,7 +8,7 @@ const { validarCampos } = require("../middlewares/validar-campos");
 const {
   crearCliente,
   buscarCliente,
-   getCliente,
+  getCliente,
   getClientePorApellido,
   actualizarCliente,
   eliminarCliente,

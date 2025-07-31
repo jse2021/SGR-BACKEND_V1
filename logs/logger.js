@@ -1,4 +1,3 @@
-// helpers/logger.js
 const { createLogger, transports, format } = require("winston");
 const fs = require("fs");
 

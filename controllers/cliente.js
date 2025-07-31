@@ -2,7 +2,7 @@ const { response } = require("express");
 const { validationResult } = require("express-validator");
 const Cliente = require("../models/Cliente");
 const logger = require("../logs/logger");
-//---------------------------------------------------------------------------------------------
+
 /**
  * CREAR CLIENTE
  * DNI - EMAIL DEBEN SER UNICOS
@@ -121,6 +121,7 @@ const getCliente = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 /**
  * ELIMINAR CLIENTE_ID
  */
@@ -150,7 +151,7 @@ const eliminarCliente = async (req, res = response) => {
     });
   }
 };
-
+//---------------------------------------------------------------------------------------------
 /**
  * ACTUALIZAR USUARIO - EL FILTRO SE HACE DESDE EL FRONT
  */
@@ -235,6 +236,7 @@ const actualizarCliente = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 /**
  * CONSULTA CLIENTE POR APELLID
  */

@@ -17,7 +17,7 @@ const {
 router.get("/", (req, res) => {
   res.status(200).json({
     ok: true,
-    msg: "API Auth activa 🚀"
+    msg: "API Auth activa",
   });
 });
 router.post(
@@ -43,9 +43,7 @@ router.post(
   "/",
   [
     check("user", "El nombre de usuario es obligatorio").not().isEmpty(),
-    // check("password", "El password debe ser de 6 caracteres").isLength({
-    //   min: 6,
-    // }),
+
     validarCampos,
   ],
   loginUsuario

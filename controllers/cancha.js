@@ -3,7 +3,7 @@ const { validationResult } = require("express-validator");
 const Cancha = require("../models/Cancha");
 const Configuracion = require("../models/configuracion");
 const logger = require("../logs/logger");
-//---------------------------------------------------------------------------------------------
+
 /**
  * CREAR CANCHAS
  */
@@ -60,7 +60,7 @@ const buscarCancha = async (req, res = response) => {
         $or: [{ nombre: regex }, { medidas: regex }],
       }),
     ]);
-    console.log(canchas);
+
     res.json({
       ok: true,
       canchas,
@@ -151,6 +151,7 @@ const eliminarCancha = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 /**
  * CONSULTAR TODAS LAS CANCHAS SIN FILTRO
  */
@@ -183,6 +184,7 @@ const getCancha = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 /**
  * CONSULTAR CANCHA POR NOMBRE
  */

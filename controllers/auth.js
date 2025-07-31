@@ -43,7 +43,7 @@ const loginUsuario = async (req, res = response) => {
       user: {
         id: usuario.id,
         user: usuario.user,
-        tipo_usuario: usuario.tipo_usuario, // <- Asegurate de enviarlo
+        tipo_usuario: usuario.tipo_usuario,
         nombre: usuario.nombre,
         apellido: usuario.apellido,
       },
@@ -57,6 +57,7 @@ const loginUsuario = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 const revalidartoken = async (req, res = response) => {
   const { id, user } = req;
 
@@ -83,6 +84,7 @@ const revalidartoken = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 
 /**
  * CREAR NUEVO USUARIO
@@ -91,8 +93,6 @@ const crearUsuario = async (req, res = response) => {
   const { nombre, email, password, user } = req.body;
 
   try {
-    console.log({ tipoUsuario });
-
     let usuario = await Usuario.findOne({ user });
 
     if (usuario) {
@@ -126,6 +126,7 @@ const crearUsuario = async (req, res = response) => {
     });
   }
 };
+//---------------------------------------------------------------------------------------------
 /**
  * BUSCO USUARIOS CON TODOS LOS FILTROS BACKEND
  */
@@ -164,7 +165,7 @@ const buscarUsuarios = async (req, res = response) => {
     });
   }
 };
-
+//---------------------------------------------------------------------------------------------
 /**
  * BUSCAR USUARIO - EL FILTRO SE HACE DESDE EL FRONT
  */
@@ -193,7 +194,7 @@ const getUsuario = async (req, res = response) => {
     });
   }
 };
-
+//---------------------------------------------------------------------------------------------
 /**
  * BUSCAR USUARIO POR USER
  */
@@ -221,7 +222,7 @@ const getUsuarioPorUser = async (req, res = response) => {
     });
   }
 };
-
+//---------------------------------------------------------------------------------------------
 /**
  * ACTUALIZAR USUARIO
  */
@@ -300,13 +301,12 @@ const actualizarUsuario = async (req, res = response) => {
     });
   }
 };
-
+//---------------------------------------------------------------------------------------------
 /**
  * ELIMINAR USUARIO_ID
  */
 const eliminarUsuario = async (req, res = response) => {
   const usuarioId = req.params.id;
-  console.log("Backend: ", usuarioId);
 
   try {
     const usuario = await Usuario.findById(usuarioId);

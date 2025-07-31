@@ -9,9 +9,7 @@ const app = express();
 // BASE DE DATOS
 dbConection();
 
-// =======================
 // CORS DEFINITIVO para Localhost + Vercel
-// =======================
 
 const allowedOrigins = [
   "http://localhost:5173",

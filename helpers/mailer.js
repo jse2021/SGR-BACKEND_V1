@@ -32,7 +32,6 @@ const enviarCorreoReserva = async (destinatario, datosReserva) => {
 };
 
 const enviarCorreoReservaActualizada = async (destinatario, datosReserva) => {
-  console.log("Destinatario:", destinatario); // <-- agrega esto para debug
   const mailOptions = {
     from: `"Sistema de Gestión de Reservas" <${process.env.MAIL_USER}>`,
     to: destinatario,

@@ -46,13 +46,3 @@ ConfiguracionSchema.method("toJSON", function () {
 });
 
 module.exports = model("Configuracion", ConfiguracionSchema);
-
-// sena_cancha: {
-//     type: String,
-//     // required: true,
-// },
-// fecha_modif: {
-//     type: Date,
-//     createdAt: Date
-//     // required: true
-// }
