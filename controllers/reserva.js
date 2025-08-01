@@ -132,10 +132,18 @@ const obtenerHorasDisponibles = async (req, res = response) => {
       });
     }
 
+    // const reservasRegistradas = await Reserva.find({
+    //   fechaCopia: fecha,
+    //   cancha,
+    // }); ANULO, FILTRO POR ESTADO
+
+    /**solo trae reservas activas o sin campo estado */
     const reservasRegistradas = await Reserva.find({
       fechaCopia: fecha,
       cancha,
+      $or: [{ estado: "activo" }, { estado: { $exists: false } }],
     });
+
     const horasOcupadas = reservasRegistradas.map((r) => r.hora);
 
     const todasLasHoras = [
@@ -244,7 +252,16 @@ const getReserva = async (req, res = response) => {
 
 const getReservaFecha = async (req, res = response) => {
   const { fechaCopia } = req.params;
-  const reservasFecha = await Reserva.find({ fechaCopia });
+  // const reservasFecha = await Reserva.find({ fechaCopia }); ANULO, SOLO TRAIGO FILTRADO POR ESTADO DE RESERVA
+
+  /**
+   * Devuelve solo reservas con estado: "activo"
+   * También incluye reservas antiguas que no tienen el campo estado ($exists: false)
+   */
+  const reservasFecha = await Reserva.find({
+    fechaCopia,
+    $or: [{ estado: "activo" }, { estado: { $exists: false } }],
+  });
 
   try {
     if (reservasFecha == "") {
@@ -320,12 +337,20 @@ const getReservaFechaCancha = async (req, res = response) => {
     const fechaFin = new Date(fecha);
     fechaFin.setUTCHours(23, 59, 59, 999);
 
+    // const filter = {
+    //   fecha: {
+    //     $gte: fechaInicio,
+    //     $lt: fechaFin,
+    //   },
+    //   cancha,
+    // }; ANULADO, AGREGAMOS FILTRO ESTADO
     const filter = {
       fecha: {
         $gte: fechaInicio,
         $lt: fechaFin,
       },
       cancha,
+      $or: [{ estado: "activo" }, { estado: { $exists: false } }],
     };
 
     const total = await Reserva.countDocuments(filter);
@@ -373,9 +398,14 @@ const getReservaClienteRango = async (req, res = response) => {
       $lte: new Date(fechaFin),
     };
 
+    // const filter = {
+    //   cliente,
+    //   fecha: rangoFechas,
+    // }; ANULO, AGREGO FILTRO ESTADO
     const filter = {
       cliente,
       fecha: rangoFechas,
+      $or: [{ estado: "activo" }, { estado: { $exists: false } }],
     };
 
     const total = await Reserva.countDocuments(filter); // cuenta la cantidad de reservas, sirve para para saber total de paginas a mostrar
@@ -549,7 +579,11 @@ const eliminarReserva = async (req, res = response) => {
     }
 
     //new:true, significa que va a retornar los datos actualizados
-    await Reserva.findByIdAndDelete(reservaId);
+    // await Reserva.findByIdAndDelete(reservaId); ANULO, PARA EN VEZ DE ELIMINAR, ACTUALICE
+
+    // En vez de eliminar, cambiamos el estado
+    reserva.estado = "inactivo";
+    await reserva.save();
 
     //Buscar al cliente por ID (que está en reservaActualizada.cliente)
     const cliente = await Cliente.findOne({ dni: reserva.cliente });
@@ -606,9 +640,14 @@ const estadoReservasRango = async (req, res = response) => {
     };
 
     // Filtrar reservas según estado y rango
+    // const filter = {
+    //   estado_pago,
+    //   fecha: rangoFechas,
+    // }; ANULO, PORQUE AGREGO TAMBIEN AL FILTRO ESTADO
     const filter = {
       estado_pago,
       fecha: rangoFechas,
+      $or: [{ estado: "activo" }, { estado: { $exists: false } }],
     };
 
     const totalItems = await Reserva.countDocuments(filter);
@@ -690,12 +729,20 @@ const estadoRecaudacion = async (req, res = response) => {
       });
     }
 
+    // const reservas = await Reserva.find({
+    //   fecha: {
+    //     $gte: fechaInicio,
+    //     $lte: fechaFinal,
+    //   },
+    //   cancha,
+    // }); ANULO, AGREGO FILTRO POR ESTADO
     const reservas = await Reserva.find({
       fecha: {
         $gte: fechaInicio,
         $lte: fechaFinal,
       },
       cancha,
+      $or: [{ estado: "activo" }, { estado: { $exists: false } }],
     });
 
     if (!reservas.length) {
@@ -778,11 +825,18 @@ const recaudacionFormasDePago = async (req, res = response) => {
 
   try {
     // Construcción dinámica del filtro
+    // const filters = { fecha: fechaCopia };
+
+    // if (cancha !== "TODAS") filters.cancha = cancha;
+    // if (forma_pago !== "TODAS") filters.forma_pago = forma_pago;
+    // if (estado_pago !== "TODAS") filters.estado_pago = estado_pago; ANULO PARA AGREGAR FILTRO POR ESTADO
     const filters = { fecha: fechaCopia };
 
     if (cancha !== "TODAS") filters.cancha = cancha;
     if (forma_pago !== "TODAS") filters.forma_pago = forma_pago;
     if (estado_pago !== "TODAS") filters.estado_pago = estado_pago;
+
+    filters.$or = [{ estado: "activo" }, { estado: { $exists: false } }];
 
     // Conteo total de resultados sin paginar
     const totalItems = await Reserva.countDocuments(filters);

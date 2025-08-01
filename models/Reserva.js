@@ -68,6 +68,12 @@ const ReservaSchema = Schema({
   observacion: {
     type: String,
   },
+  estado: {
+    type: String,
+    enum: ["activo", "inactivo"],
+    default: "activo",
+    index: true,
+  },
 
   user: {
     type: String,

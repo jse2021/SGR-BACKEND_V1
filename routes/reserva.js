@@ -72,7 +72,8 @@ router.get("/", getReserva);
 router.put("/:id", actualizarReserva);
 
 // Borrar Reserva
-router.delete("/:id", eliminarReserva);
+// router.delete("/:id", eliminarReserva);
+router.put("/eliminar/:id", eliminarReserva);
 
 module.exports = router;
 // router.get("/recaudacion/:cancha/:fechaCopia", estadoRecaudacion);
