@@ -18,6 +18,7 @@ const {
   getCanchaHora,
   obtenerHorasDisponibles,
   obtenerMontoPorEstado,
+  reservasEliminadasRango,
 } = require("../controllers/reserva");
 const router = Router();
 const { check } = require("express-validator");
@@ -55,6 +56,10 @@ router.get("/recaudacion/:cancha/:fechaIni/:fechaFin", estadoRecaudacion);
 router.get(
   "/estadoReservas/:estado_pago/:fechaIni/:fechaFin",
   estadoReservasRango
+);
+router.get(
+  "/reservasEliminadas/:estado_pago/:fechaIni/:fechaFin",
+  reservasEliminadasRango
 );
 router.get(
   "/:fechaCopia/:cancha/:forma_pago/:estado_pago",

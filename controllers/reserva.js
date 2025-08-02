@@ -885,6 +885,97 @@ const recaudacionFormasDePago = async (req, res = response) => {
     });
   }
 };
+/**
+ * REPORTE: CONSULTAR RESERVAS ELIMINADAS POR RANGO DE FECHAS Y POR ESTADO DE PAGO
+ */
+const reservasEliminadasRango = async (req, res = response) => {
+  const { estado_pago, fechaIni, fechaFin } = req.params;
+
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  if (!fechaIni || !fechaFin) {
+    return res.status(400).json({
+      ok: false,
+      msg: "Debe especificar las fechas de inicio y fin",
+    });
+  }
+
+  try {
+    const rangoFechas = {
+      $gte: new Date(fechaIni),
+      $lte: new Date(fechaFin),
+    };
+
+    const filter = {
+      fecha: rangoFechas,
+      $or: [{ estado: "inactivo" }, { estado: { $exists: false } }],
+    };
+
+    if (estado_pago !== "TODAS") {
+      filter.estado_pago = estado_pago;
+    }
+
+    const totalItems = await Reserva.countDocuments(filter);
+
+    if (totalItems === 0) {
+      return res.status(404).json({
+        ok: false,
+        msg: "No se encontraron reservas en el rango de fechas especificado",
+        reservasFormateadas: [],
+        totalPages: 1,
+      });
+    }
+
+    const estadoReservas = await Reserva.find(filter)
+      .skip(skip)
+      .limit(limit)
+      .sort({ fecha: 1 });
+
+    const reservasFormateadas = estadoReservas.map((reserva) => {
+      const base = {
+        nombre: reserva.nombreCliente,
+        apellido: reserva.apellidoCliente,
+        fecha: reserva.fechaCopia,
+        cancha: reserva.cancha,
+        hora: reserva.hora,
+        estadoPago: reserva.estado_pago,
+        estado: reserva.estado,
+        usuario: reserva.user,
+      };
+
+      switch (estado_pago) {
+        case "TOTAL":
+          return { ...base, monto_total: reserva.monto_cancha };
+        case "SEÑA":
+          return { ...base, monto_sena: reserva.monto_sena };
+        case "IMPAGO":
+          return base;
+        default:
+          return {
+            ...base,
+            monto_total: reserva.monto_cancha,
+            monto_sena: reserva.monto_sena,
+          };
+      }
+    });
+
+    return res.status(200).json({
+      ok: true,
+      reservasFormateadas,
+      page,
+      totalPages: Math.ceil(totalItems / limit),
+      totalItems,
+      msg: "Estado de las reservas eliminadas",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      msg: "Consulte con el administrador",
+    });
+  }
+};
 
 module.exports = {
   getReserva,
@@ -897,6 +988,7 @@ module.exports = {
   estadoReservasRango,
   estadoRecaudacion,
   recaudacionFormasDePago,
+  reservasEliminadasRango,
   getCanchaHora,
   obtenerHorasDisponibles,
   obtenerMontoPorEstado,
