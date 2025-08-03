@@ -2,6 +2,7 @@ const { response } = require("express");
 const { validationResult } = require("express-validator");
 const Cliente = require("../models/Cliente");
 const logger = require("../logs/logger");
+const Reserva = require("../models/Reserva");
 
 /**
  * CREAR CLIENTE
@@ -127,13 +128,28 @@ const getCliente = async (req, res = response) => {
  */
 const eliminarCliente = async (req, res = response) => {
   const clienteId = req.params.id;
+  console.log(clienteId);
 
   try {
     const cliente = await Cliente.findById(clienteId);
+    console.log(clienteId);
+
     if (!cliente) {
       return res.status(404).json({
         ok: false,
         msg: "Cliente inexistente",
+      });
+    }
+    // Evito eliminar cliente si tiene reservas activas
+    const reservasActivas = await Reserva.find({
+      cliente: cliente.dni,
+      estado: "activo",
+    });
+
+    if (reservasActivas.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        msg: `No se puede eliminar el cliente porque tiene ${reservasActivas.length} reservas activas asociadas.`,
       });
     }
 
