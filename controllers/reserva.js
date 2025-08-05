@@ -123,7 +123,7 @@ const crearReserva = async (req, res = response) => {
 // para consultar segun fecha, los horarios disponibles de cancha indicada
 const obtenerHorasDisponibles = async (req, res = response) => {
   try {
-    const { fecha, cancha } = req.body;
+    const { fecha, cancha,reservaId  } = req.body;
 
     if (!fecha || !cancha) {
       return res.status(400).json({
@@ -138,11 +138,27 @@ const obtenerHorasDisponibles = async (req, res = response) => {
     // }); ANULO, FILTRO POR ESTADO
 
     /**solo trae reservas activas o sin campo estado */
-    const reservasRegistradas = await Reserva.find({
+    // const reservasRegistradas = await Reserva.find({
+    //   fechaCopia: fecha,
+    //   cancha,
+    //   $or: [{ estado: "activo" }, { estado: { $exists: false } }],
+    // });
+
+    //   if (reservaId && mongoose.Types.ObjectId.isValid(reservaId)) {
+    //     filtroBase._id = { $ne: reservaId };
+    //   }
+    const filtro = {
       fechaCopia: fecha,
       cancha,
       $or: [{ estado: "activo" }, { estado: { $exists: false } }],
-    });
+    };
+
+    if (reservaId && mongoose.Types.ObjectId.isValid(reservaId)) {
+      filtro._id = { $ne: reservaId }; //  excluir reserva en edición
+    }
+
+    const reservasRegistradas = await Reserva.find(filtro);
+
 
     const horasOcupadas = reservasRegistradas.map((r) => r.hora);
 

@@ -191,3 +191,120 @@
     at model.Query.exec (C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\query.js:4419:28)
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
     at async getReservaFechaCancha (C:\Users\Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:331:19)
+[2025-08-05 16:36:19] ERROR: ReferenceError: filtroBase is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:9)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:36:39] ERROR: ReferenceError: filtroBase is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:9)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:41:15] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:146:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:41:15] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:146:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:41:16] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:146:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:41:16] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:146:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:41:21] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:146:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:41:24] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:146:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:41:27] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:146:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:46:12] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:156:22)
+    at Layer.handle [as handle_request] (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\route.js:144:13)
+    at validarJWT (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\middlewares\validar-jwt.js:23:3)
+    at Layer.handle [as handle_request] (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\route.js:144:13)
+    at Route.dispatch (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\route.js:114:3)
+    at Layer.handle [as handle_request] (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\layer.js:95:5)
+    at C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\index.js:284:15
+    at Function.process_params (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\index.js:346:12)
+[2025-08-05 16:46:19] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:156:22)
+    at Layer.handle [as handle_request] (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\route.js:144:13)
+    at validarJWT (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\middlewares\validar-jwt.js:23:3)
+    at Layer.handle [as handle_request] (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\route.js:144:13)
+    at Route.dispatch (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\route.js:114:3)
+    at Layer.handle [as handle_request] (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\layer.js:95:5)
+    at C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\index.js:284:15
+    at Function.process_params (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\index.js:346:12)
+[2025-08-05 16:47:20] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:47:31] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:47:49] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:47:49] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:47:53] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:48:08] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:48:32] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:48:36] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:48:40] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:48:43] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:48:43] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:48:58] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:48:58] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:49:00] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:49:00] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:49:02] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:49:02] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:49:05] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:49:05] ERROR: ReferenceError: reservaId is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:147:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[2025-08-05 16:49:27] ERROR: ReferenceError: mongoose is not defined
+    at obtenerHorasDisponibles (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\controllers\reserva.js:156:22)
+    at Layer.handle [as handle_request] (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\route.js:144:13)
+    at validarJWT (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\middlewares\validar-jwt.js:23:3)
+    at Layer.handle [as handle_request] (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\route.js:144:13)
+    at Route.dispatch (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\route.js:114:3)
+    at Layer.handle [as handle_request] (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\layer.js:95:5)
+    at C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\index.js:284:15
+    at Function.process_params (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\index.js:346:12)
