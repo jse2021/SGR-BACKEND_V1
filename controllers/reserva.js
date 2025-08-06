@@ -1,4 +1,5 @@
 const { response } = require("express");
+const mongoose = require("mongoose");
 const axios = require("axios");
 const { body } = require("express-validator");
 const Reserva = require("../models/Reserva");
@@ -121,9 +122,10 @@ const crearReserva = async (req, res = response) => {
 };
 
 // para consultar segun fecha, los horarios disponibles de cancha indicada
+
 const obtenerHorasDisponibles = async (req, res = response) => {
   try {
-    const { fecha, cancha,reservaId  } = req.body;
+    const { fecha, cancha, reservaId } = req.body;
 
     if (!fecha || !cancha) {
       return res.status(400).json({
@@ -132,21 +134,6 @@ const obtenerHorasDisponibles = async (req, res = response) => {
       });
     }
 
-    // const reservasRegistradas = await Reserva.find({
-    //   fechaCopia: fecha,
-    //   cancha,
-    // }); ANULO, FILTRO POR ESTADO
-
-    /**solo trae reservas activas o sin campo estado */
-    // const reservasRegistradas = await Reserva.find({
-    //   fechaCopia: fecha,
-    //   cancha,
-    //   $or: [{ estado: "activo" }, { estado: { $exists: false } }],
-    // });
-
-    //   if (reservaId && mongoose.Types.ObjectId.isValid(reservaId)) {
-    //     filtroBase._id = { $ne: reservaId };
-    //   }
     const filtro = {
       fechaCopia: fecha,
       cancha,
@@ -154,14 +141,18 @@ const obtenerHorasDisponibles = async (req, res = response) => {
     };
 
     if (reservaId && mongoose.Types.ObjectId.isValid(reservaId)) {
-      filtro._id = { $ne: reservaId }; //  excluir reserva en edición
+      filtro._id = { $ne: new mongoose.Types.ObjectId(reservaId) };
     }
+    console.log("Filtro backend:", {
+      fechaCopia: fecha,
+      cancha,
+      reservaId,
+    });
 
     const reservasRegistradas = await Reserva.find(filtro);
 
-
     const horasOcupadas = reservasRegistradas.map((r) => r.hora);
-
+    console.log("Horas Ocupadas: ", horasOcupadas);
     const todasLasHoras = [
       "08:00",
       "09:00",
@@ -182,21 +173,22 @@ const obtenerHorasDisponibles = async (req, res = response) => {
     ];
 
     const horasDisponibles = todasLasHoras.filter(
-      (h) => !horasOcupadas.includes(h)
+      (hora) => !horasOcupadas.includes(hora)
     );
-
-    return res.json({
+    console.log("Horas Disponibles: ", horasDisponibles);
+    return res.status(200).json({
       ok: true,
       horasDisponibles,
     });
   } catch (error) {
-    logger.error(error);
+    console.error("Error en obtenerHorasDisponibles:", error);
     return res.status(500).json({
       ok: false,
-      msg: "Error interno del servidor",
+      msg: "Error interno al obtener horarios disponibles",
     });
   }
 };
+
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //**
