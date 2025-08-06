@@ -1,4 +1,5 @@
 const { response } = require("express");
+const mongoose = require("mongoose");
 const axios = require("axios");
 const { body } = require("express-validator");
 const Reserva = require("../models/Reserva");
@@ -121,9 +122,10 @@ const crearReserva = async (req, res = response) => {
 };
 
 // para consultar segun fecha, los horarios disponibles de cancha indicada
+
 const obtenerHorasDisponibles = async (req, res = response) => {
   try {
-    const { fecha, cancha,reservaId  } = req.body;
+    const { fecha, cancha, reservaId } = req.body;
 
     if (!fecha || !cancha) {
       return res.status(400).json({
@@ -132,21 +134,19 @@ const obtenerHorasDisponibles = async (req, res = response) => {
       });
     }
 
-    // const reservasRegistradas = await Reserva.find({
-    //   fechaCopia: fecha,
-    //   cancha,
-    // }); ANULO, FILTRO POR ESTADO
+    // Rango de fecha para filtrar correctamente reservas del mismo día
+    // const fechaInicio = new Date(fecha);
+    // fechaInicio.setHours(0, 0, 0, 0);
 
-    /**solo trae reservas activas o sin campo estado */
-    // const reservasRegistradas = await Reserva.find({
+    // const fechaFin = new Date(fecha);
+    // fechaFin.setHours(23, 59, 59, 999);
+
+    // const filtro = {
     //   fechaCopia: fecha,
     //   cancha,
     //   $or: [{ estado: "activo" }, { estado: { $exists: false } }],
-    // });
+    // };
 
-    //   if (reservaId && mongoose.Types.ObjectId.isValid(reservaId)) {
-    //     filtroBase._id = { $ne: reservaId };
-    //   }
     const filtro = {
       fechaCopia: fecha,
       cancha,
@@ -154,14 +154,18 @@ const obtenerHorasDisponibles = async (req, res = response) => {
     };
 
     if (reservaId && mongoose.Types.ObjectId.isValid(reservaId)) {
-      filtro._id = { $ne: reservaId }; //  excluir reserva en edición
+      filtro._id = { $ne: new mongoose.Types.ObjectId(reservaId) };
     }
+    console.log("📦 Filtro backend:", {
+      fechaCopia: fecha,
+      cancha,
+      reservaId,
+    });
 
     const reservasRegistradas = await Reserva.find(filtro);
 
-
     const horasOcupadas = reservasRegistradas.map((r) => r.hora);
-
+    console.log("Horas Ocupadas: ", horasOcupadas);
     const todasLasHoras = [
       "08:00",
       "09:00",
@@ -182,21 +186,166 @@ const obtenerHorasDisponibles = async (req, res = response) => {
     ];
 
     const horasDisponibles = todasLasHoras.filter(
-      (h) => !horasOcupadas.includes(h)
+      (hora) => !horasOcupadas.includes(hora)
     );
-
-    return res.json({
+    console.log("Horas Disponibles: ", horasDisponibles);
+    return res.status(200).json({
       ok: true,
       horasDisponibles,
     });
   } catch (error) {
-    logger.error(error);
+    console.error("❌ Error en obtenerHorasDisponibles:", error);
     return res.status(500).json({
       ok: false,
-      msg: "Error interno del servidor",
+      msg: "Error interno al obtener horarios disponibles",
     });
   }
 };
+
+// const obtenerHorasDisponibles = async (req, res = response) => {
+//   try {
+//     const { fecha, cancha, reservaId } = req.body;
+
+//     if (!fecha || !cancha) {
+//       return res.status(400).json({
+//         ok: false,
+//         msg: "Faltan datos: fecha y/o cancha",
+//       });
+//     }
+
+//     // const reservasRegistradas = await Reserva.find({
+//     //   fechaCopia: fecha,
+//     //   cancha,
+//     // });
+
+//     /**solo trae reservas activas o sin campo estado */
+//     // const reservasRegistradas = await Reserva.find({
+//     //   fechaCopia: fecha,
+//     //   cancha,
+//     //   $or: [{ estado: "activo" }, { estado: { $exists: false } }],
+//     // });
+
+//     if (reservaId && mongoose.Types.ObjectId.isValid(reservaId)) {
+//       filtroBase._id = { $ne: reservaId };
+//     }
+//     const filtro = {
+//       fechaCopia: fecha,
+//       cancha,
+//       $or: [{ estado: "activo" }, { estado: { $exists: false } }],
+//     };
+
+//     if (reservaId && mongoose.Types.ObjectId.isValid(reservaId)) {
+//       filtro._id = { $ne: reservaId }; //  excluir reserva en edición
+//     }
+
+//     const reservasRegistradas = await Reserva.find(filtro);
+
+//     const horasOcupadas = reservasRegistradas.map((r) => r.hora);
+
+//     const todasLasHoras = [
+//       "08:00",
+//       "09:00",
+//       "10:00",
+//       "11:00",
+//       "12:00",
+//       "13:00",
+//       "14:00",
+//       "15:00",
+//       "16:00",
+//       "17:00",
+//       "18:00",
+//       "19:00",
+//       "20:00",
+//       "21:00",
+//       "22:00",
+//       "23:00",
+//     ];
+
+//     const horasDisponibles = todasLasHoras.filter(
+//       (h) => !horasOcupadas.includes(h)
+//     );
+
+//     return res.json({
+//       ok: true,
+//       horasDisponibles,
+//     });
+//   } catch (error) {
+//     logger.error(error);
+//     return res.status(500).json({
+//       ok: false,
+//       msg: "Error interno del servidor",
+//     });
+//   }
+// };
+// const mongoose = require("mongoose"); // asegurate que esté importado
+
+// const obtenerHorasDisponibles = async (req, res = response) => {
+//   const { fecha, cancha, reservaId } = req.body;
+
+//   if (!fecha || !cancha) {
+//     return res.status(400).json({
+//       ok: false,
+//       msg: "Faltan datos: fecha y/o cancha",
+//     });
+//   }
+
+//   try {
+//     // 🎯 Filtro base para encontrar reservas activas
+//     const filtro = {
+//       fechaCopia: fecha,
+//       cancha,
+//       $or: [
+//         { estado: "activo" },
+//         { estado: { $exists: false } }, // para compatibilidad con datos viejos
+//       ],
+//     };
+
+//     // 🧠 Excluir la reserva actual en modo edición
+//     if (reservaId && mongoose.Types.ObjectId.isValid(reservaId)) {
+//       filtro._id = { $ne: new mongoose.Types.ObjectId(reservaId) };
+//       console.log(filtro._id);
+//     }
+
+//     const reservasRegistradas = await Reserva.find(filtro);
+
+//     const horasOcupadas = reservasRegistradas.map((r) => r.hora);
+
+//     const todasLasHoras = [
+//       "08:00",
+//       "09:00",
+//       "10:00",
+//       "11:00",
+//       "12:00",
+//       "13:00",
+//       "14:00",
+//       "15:00",
+//       "16:00",
+//       "17:00",
+//       "18:00",
+//       "19:00",
+//       "20:00",
+//       "21:00",
+//       "22:00",
+//       "23:00",
+//     ];
+
+//     const horasDisponibles = todasLasHoras.filter(
+//       (hora) => !horasOcupadas.includes(hora)
+//     );
+
+//     return res.status(200).json({
+//       ok: true,
+//       horasDisponibles,
+//     });
+//   } catch (error) {
+//     console.error("❌ Error interno en obtenerHorasDisponibles:", error);
+//     return res.status(500).json({
+//       ok: false,
+//       msg: "Error interno al obtener horarios disponibles",
+//     });
+//   }
+// };
+
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //**
