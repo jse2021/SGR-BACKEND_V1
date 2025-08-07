@@ -768,6 +768,7 @@ const estadoRecaudacion = async (req, res = response) => {
     reservas.forEach((reserva) => {
       const fechaStr = new Date(reserva.fechaCopia).toISOString().split("T")[0];
 
+      //si el dia no existe, lo agrego al mapa
       if (!resumenMap.has(fechaStr)) {
         resumenMap.set(fechaStr, {
           Fecha: fechaStr,
