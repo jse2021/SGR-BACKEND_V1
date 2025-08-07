@@ -726,7 +726,6 @@ const estadoRecaudacion = async (req, res = response) => {
       });
     }
 
-    // Usamos la lógica que sabés que funciona
     const fechaInicio = new Date(fechaIni);
     const fechaFinal = new Date(fechaFin);
 
