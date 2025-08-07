@@ -1,3 +1,7 @@
+/**
+ * CONECTO LA APP CON LA BASE DE DATOS
+ */
+
 const mongoose = require("mongoose");
 
 const dbConection = async () => {
