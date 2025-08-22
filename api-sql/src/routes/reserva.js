@@ -3,7 +3,7 @@
  * /api/reserva
  */
 const { Router } = require("express");
-const { validarJWT } = require("../middlewares/validar-jwt");
+const { validarJWT } = require("../../middlewares/validar-jwt");
 const {
   getReserva,
   crearReserva,
@@ -22,8 +22,8 @@ const {
 } = require("../controllers/reserva");
 const router = Router();
 const { check } = require("express-validator");
-const { validarCampos } = require("../middlewares/validar-campos");
-const { isDate } = require("../helpers/isDate");
+const { validarCampos } = require("../../middlewares/validar-campos");
+const { isDate } = require("../../helpers/isDate");
 
 // Todas las peticiones tinen que pasar por el validarJWT
 router.use(validarJWT);
