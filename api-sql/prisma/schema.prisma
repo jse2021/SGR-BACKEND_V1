@@ -22,7 +22,23 @@ model Cancha {
   id      Int    @id @default(autoincrement())
   nombre  String @unique
   medidas String
-  
+
   @@index([nombre])
   @@index([medidas])
+}
+
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  user         String   @unique
+  password     String
+  nombre       String
+  apellido     String
+  celular      String
+  email        String?  @unique
+  tipo_usuario String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([apellido, nombre])
+  @@index([user])
 }

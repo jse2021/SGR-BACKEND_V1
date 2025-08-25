@@ -13,11 +13,11 @@ const {
 } = require('../controllers/cancha.controller');
 
 const router = Router();
-router.use(validarJWT); // igual que cliente
+router.use(validarJWT); 
 
 router.post('/', crearCancha);
 router.get('/', getCancha);
-router.get('/buscar/:termino', buscarCancha);     // ?page=&limit=
+router.get('/buscar/:termino', buscarCancha); 
 router.get('/nombre/:nombre', getCanchaPorNombre);
 router.put('/:id', actualizarCancha);
 router.delete('/:id', eliminarCancha);
