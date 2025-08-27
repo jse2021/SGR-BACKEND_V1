@@ -1,0 +1,161 @@
+const { prisma } = require('../db');
+
+// Utilidad: números seguros
+const toNumberOrNull = (v) => (v === undefined || v === null ? null : Number(v));
+
+
+//-----------------------------------CREAR_MONTO_CANCHA----------------------------
+async function crearMontoCancha(req, res) {
+  try {
+    const { nombre, monto_cancha, monto_sena } = req.body;
+
+    // 1) Existe la cancha por nombre?
+    const cancha = await prisma.cancha.findUnique({ where: { nombre } });
+    if (!cancha) {
+      return res.status(400).json({ ok: false, msg: 'Cancha no existe' });
+    }
+
+    // 2) Ya tiene configuración? (bloquear como en Mongo)
+    const existente = await prisma.configuracion.findUnique({ where: { canchaId: cancha.id } });
+    if (existente) {
+      return res.status(400).json({
+        ok: false,
+        msg: 'Cancha existente. Si desea realizar cambios en la cancha debe actualizar la misma',
+      });
+    }
+
+    // 3) Crear
+    await prisma.configuracion.create({
+      data: {
+        canchaId: cancha.id,
+        monto_cancha: toNumberOrNull(monto_cancha),
+        monto_sena: toNumberOrNull(monto_sena),
+      },
+    });
+
+    return res.status(200).json({ ok: true, msg: 'Configuracion exitosa' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+//-----------------------------------GET_MONTO_CANCHA_POR_NOMBRE----------------------------
+async function getMontoCanchas(req, res) {
+  const { nombre } = req.params;
+  try {
+    const cancha = await prisma.cancha.findUnique({ where: { nombre } });
+    if (!cancha) {
+      return res.status(400).json({ ok: false, msg: 'No existen configuraciones para esta cancha' });
+    }
+
+    const conf = await prisma.configuracion.findUnique({ where: { canchaId: cancha.id } });
+    if (!conf) {
+      return res.status(400).json({ ok: false, msg: 'No existen configuraciones' });
+    }
+
+    // armamos salida similar a tu Mongo
+    const canchasMonto = {
+      id: conf.id,
+      nombre: nombre,
+      monto_cancha: Number(conf.monto_cancha),
+      monto_sena: Number(conf.monto_sena),
+    };
+
+    return res.json({ ok: true, canchasMonto, msg: 'Listado de configuraciones' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+//-----------------------------------TRAIGO_TODAS_LAS_CONF_X_ID----------------------------
+async function getMontoCanchaId(req, res) {
+  const { idCancha } = req.params;
+  try {
+    const cancha = await prisma.cancha.findUnique({ where: { id: Number(idCancha) } });
+    if (!cancha) {
+      return res.status(404).json({ ok: false, msg: 'Cancha no encontrada' });
+    }
+
+    const conf = await prisma.configuracion.findUnique({ where: { canchaId: cancha.id } });
+    if (!conf) {
+      return res.status(404).json({ ok: false, msg: 'No existen configuraciones para esta cancha' });
+    }
+
+    const canchasMonto = {
+      id: conf.id,
+      nombre: cancha.nombre,
+      monto_cancha: Number(conf.monto_cancha),
+      monto_sena: Number(conf.monto_sena),
+    };
+
+    return res.status(200).json({ ok: true, canchasMonto, msg: 'Configuración encontrada' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+//-----------------------------------LISTA_TODAS_CONF----------------------------
+async function getCanchasPrecio(_req, res) {
+  try {
+    const confs = await prisma.configuracion.findMany({
+      include: { cancha: { select: { nombre: true } } },
+      orderBy: { id: 'asc' },
+    });
+
+    if (!confs || confs.length === 0) {
+      return res.status(400).json({ ok: false, msg: 'No existen configuraciones' });
+    }
+
+    const canchasPrecio = confs.map((c) => ({
+      id: c.id, // igual que en tu Mongo: id de la configuración
+      nombre: c.cancha?.nombre || '',
+      precio_cancha: Number(c.monto_cancha),
+      precio_sena: Number(c.monto_sena),
+    }));
+
+    return res.json({ ok: true, canchasPrecio, msg: 'Listado de configuraciones' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+//-----------------------------------ACTUALIZO_MONTO_CANCHA----------------------------
+async function actualizarMontoCancha(req, res) {
+  const { nombre } = req.params;
+  try {
+    const cancha = await prisma.cancha.findUnique({ where: { nombre } });
+    if (!cancha) {
+      return res.status(400).json({ ok: false, msg: 'La cancha no existe en la base de datos' });
+    }
+
+    const conf = await prisma.configuracion.findUnique({ where: { canchaId: cancha.id } });
+    if (!conf) {
+      return res.status(400).json({ ok: false, msg: 'La cancha no existe en la base de datos' });
+    }
+
+    const data = {};
+    if (req.body.monto_cancha !== undefined) data.monto_cancha = Number(req.body.monto_cancha);
+    if (req.body.monto_sena !== undefined)   data.monto_sena   = Number(req.body.monto_sena);
+
+    const act = await prisma.configuracion.update({
+      where: { canchaId: cancha.id },
+      data,
+    });
+
+    return res.json({
+      ok: true,
+      canchaNombre: { nombre, ...data },
+      msg: 'Montos actualizados correctamente',
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+module.exports = {
+  crearMontoCancha,
+  getMontoCanchas,
+  getMontoCanchaId,
+  getCanchasPrecio,
+  actualizarMontoCancha,
+};

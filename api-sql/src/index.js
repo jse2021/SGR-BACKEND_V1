@@ -12,7 +12,7 @@ app.get('/health', (_req, res) => res.json({ ok: true, api: 'sql' }));
 app.use('/cliente', require('./routes/cliente.js'));
 app.use('/cancha', require('./routes/cancha.js'));
 app.use('/auth', require('./routes/auth.js'));
-
+app.use('/configuracion', require('./routes/configuracion.js'));
 
 
 
