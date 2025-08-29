@@ -13,6 +13,7 @@ app.use('/cliente', require('./routes/cliente.js'));
 app.use('/cancha', require('./routes/cancha.js'));
 app.use('/auth', require('./routes/auth.js'));
 app.use('/configuracion', require('./routes/configuracion.js'));
+app.use('/reserva', require('./routes/reserva.js'));
 
 
 

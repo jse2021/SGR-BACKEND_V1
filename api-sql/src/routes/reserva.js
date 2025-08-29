@@ -1,84 +1,47 @@
-/**
- * Reservas Routes
- * /api/reserva
- */
-const { Router } = require("express");
-const { validarJWT } = require("../../middlewares/validar-jwt");
+const { Router } = require('express');
+const { validarJWT } = require('../middlewares/validar-jwt');
+const { check } = require('express-validator');
+const { validarCampos } = require('../middlewares/validar-campos');
 const {
-  getReserva,
-  crearReserva,
-  getReservaFecha,
-  getReservaFechaCancha,
-  getReservaClienteRango,
-  actualizarReserva,
-  eliminarReserva,
-  estadoReservasRango,
-  estadoRecaudacion,
-  recaudacionFormasDePago,
-  getCanchaHora,
-  obtenerHorasDisponibles,
-  obtenerMontoPorEstado,
-  reservasEliminadasRango,
-} = require("../controllers/reserva");
-const router = Router();
-const { check } = require("express-validator");
-const { validarCampos } = require("../../middlewares/validar-campos");
-const { isDate } = require("../../helpers/isDate");
 
-// Todas las peticiones tinen que pasar por el validarJWT
+   crearReserva,
+   obtenerHorasDisponibles,
+  obtenerMontoPorEstado,
+} = require('../controllers/reserva.controller');
+
+const router = Router();
 router.use(validarJWT);
 
-// Crear una reserva
 router.post(
-  "/",
+  '/',
   [
-    check("hora", "El horario no puede estar vacio").not().isEmpty(),
-    check("estado_pago", "Debe seleccionar un estado de pago").not().isEmpty(),
-    check("fecha", "La fecha es obligatoria").custom(isDate),
-    check("cancha", "Debe seleccionar una cancha").not().isEmpty(),
-    check("cliente", "Debe indicar un cliente").not().isEmpty(),
-    check("forma_pago", "Debe indicar la forma de pago").not().isEmpty(),
+    check('hora', 'El horario no puede estar vacio').not().isEmpty(),
+    check('estado_pago', 'Debe seleccionar un estado de pago').not().isEmpty(),
+    check('fecha', 'La fecha es obligatoria').not().isEmpty(), // si usás isDate personalizado, agregalo
+    check('cancha', 'Debe seleccionar una cancha').not().isEmpty(),
+    check('cliente', 'Debe indicar un cliente').not().isEmpty(),
+    check('forma_pago', 'Debe indicar la forma de pago').not().isEmpty(),
     validarCampos,
   ],
   crearReserva
 );
 
-//vincular para consultar cancha y horarios disponibles segun dia elegido
-router.post("/horarios-disponibles", validarJWT, obtenerHorasDisponibles);
+router.post('/horarios-disponibles', obtenerHorasDisponibles);
+router.post('/obtener-monto', obtenerMontoPorEstado);
 
-//obtener montos segun estado de pago seleccionado
-router.post("/obtener-monto", validarJWT, obtenerMontoPorEstado);
+// router.get('/recaudacion/:cancha/:fechaIni/:fechaFin', estadoRecaudacion);
+// router.get('/estadoReservas/:estado_pago/:fechaIni/:fechaFin', estadoReservasRango);
+// router.get('/reservasEliminadas/:estado_pago/:fechaIni/:fechaFin', (req,res)=>res.status(501).json({ok:false,msg:'(opc) implementable similar a estadoReservasRango filtrando estado=inactivo'}));
+// router.get('/:fechaCopia/:cancha/:forma_pago/:estado_pago', recaudacionFormasDePago);
 
-// Obtener Reservas
-//RUTAS ESPECIFICAS
+// router.get('/:cliente/:fechaIni/:fechaFin', getReservaClienteRango);
+// router.get('/:fecha/:cancha', getReservaFechaCancha);
 
-router.get("/recaudacion/:cancha/:fechaIni/:fechaFin", estadoRecaudacion);
-router.get(
-  "/estadoReservas/:estado_pago/:fechaIni/:fechaFin",
-  estadoReservasRango
-);
-router.get(
-  "/reservasEliminadas/:estado_pago/:fechaIni/:fechaFin",
-  reservasEliminadasRango
-);
-router.get(
-  "/:fechaCopia/:cancha/:forma_pago/:estado_pago",
-  recaudacionFormasDePago
-);
+// router.get('/:fechaCopia', getReservaFecha);
+// router.get('/', getReserva);
 
-router.get("/:cliente/:fechaIni/:fechaFin", getReservaClienteRango);
-router.get("/:fecha/:cancha", getReservaFechaCancha);
-
-//RUTAS GENERICAS
-router.get("/:fechaCopia", getReservaFecha);
-router.get("/", getReserva);
-
-// actualizar Reserva
-router.put("/:id", actualizarReserva);
-
-// Borrar Reserva
-// router.delete("/:id", eliminarReserva);
-router.put("/eliminar/:id", eliminarReserva);
+// router.put('/:id', actualizarReserva);
+// // Soft delete como en tu Mongo
+// router.put('/eliminar/:id', eliminarReserva);
 
 module.exports = router;
-// router.get("/recaudacion/:cancha/:fechaCopia", estadoRecaudacion);
