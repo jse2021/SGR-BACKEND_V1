@@ -7,6 +7,7 @@ const {
    crearReserva,
    obtenerHorasDisponibles,
   obtenerMontoPorEstado,
+  actualizarReserva,
 } = require('../controllers/reserva.controller');
 
 const router = Router();
@@ -40,7 +41,7 @@ router.post('/obtener-monto', obtenerMontoPorEstado);
 // router.get('/:fechaCopia', getReservaFecha);
 // router.get('/', getReserva);
 
-// router.put('/:id', actualizarReserva);
+router.put('/:id', actualizarReserva);
 // // Soft delete como en tu Mongo
 // router.put('/eliminar/:id', eliminarReserva);
 

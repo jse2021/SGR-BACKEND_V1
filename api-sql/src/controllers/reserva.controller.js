@@ -1,6 +1,11 @@
 
 const axios = require('axios');
 const { prisma } = require('../db');
+const {
+  enviarCorreoReserva,
+  enviarCorreoReservaActualizada,
+  enviarCorreoReservaEliminada,
+} = require('../helpers/mailer');
 
 // === helpers de fecha (ancla del día a -03 ===)
 const TZ_OFFSET_HOURS = 3; // Argentina
@@ -217,7 +222,10 @@ async function crearReserva(req, res) {
     // 11) Email (no romper si falla)
     try {
       if (typeof enviarCorreoReserva === 'function' && cliente.email) {
-        const fechaFormateada = new Date(creada.fechaCopia).toLocaleDateString('es-AR');
+        const fechaFormateada = anchorDateObj(creada.fechaCopia).toLocaleDateString(
+        'es-AR',
+        { timeZone: 'America/Argentina/Buenos_Aires' }
+      );
         await enviarCorreoReserva(cliente.email, {
           cancha: canchaRequest,
           fecha: fechaFormateada,
@@ -319,9 +327,281 @@ async function obtenerHorasDisponibles(req, res) {
   }
 }
 
-//==========================================================================================================
+// ============================================== ACTUALIZAR_RESERVA===========================================
+async function actualizarReserva(req, res) {
+  const id = Number(req.params.id);
+  const { fecha_copia } = req.body;
+
+  try {
+     // 1) No permitimos cambiar la fecha del día
+    if (fecha_copia) {
+      return res.status(400).json({ ok: false, msg: 'No es posible cambiar la fecha' });
+    }
+    // 2) Buscar reserva existente
+    const actual = await prisma.reserva.findUnique({ where: { id } });
+    if (!actual) {
+      return res.status(400).json({ ok: false, msg: 'La reserva no existe' });
+    }
+    // 3) Preparar cambios 
+    const nueva = { ...req.body };
+
+    // si no mandan cancha, mantener la actual 
+    if (!nueva.cancha) {
+      // en SQL guardamos title=nombre de cancha; por compat:
+      const c = await prisma.cancha.findUnique({ where: { id: actual.canchaId } });
+      nueva.cancha = c?.nombre || actual.title;
+    }
+    // 4) Resolver cancha de destino (por NOMBRE) y cliente (por DNI) si cambian
+    const destCancha = await prisma.cancha.findUnique({ where: { nombre: String(nueva.cancha) } });
+    if (!destCancha) {
+      return res.status(400).json({ ok: false, msg: 'No existe cancha' });
+    }
+
+    let destCliente = null;
+    if (nueva.cliente) {
+      destCliente = await prisma.cliente.findUnique({ where: { dni: String(nueva.cliente) } });
+      if (!destCliente) return res.status(404).json({ ok: false, msg: 'Cliente no encontrado' });
+    }
+    // 5) Hora destino (si no mandan, mantener)
+    const nuevaHora = (nueva.hora || actual.hora || '00:00').padStart(5, '0');
+
+    // 6) Si cambian cancha u estado_pago -> recalcular montos
+    let estadoPago = nueva.estado_pago ?? actual.estado_pago;
+    let monto_cancha = actual.monto_cancha;
+    let monto_sena   = actual.monto_sena;
+
+    if ((nueva.estado_pago && nueva.cancha) || (nueva.estado_pago && !nueva.cancha) || (!nueva.estado_pago && nueva.cancha)) {
+      try {
+        const token = req.header('x-token') || '';
+        const API_BASE = process.env.API_ORIGIN_BASE || 'http://localhost:5000';
+        const { data } = await axios.post(
+          `${API_BASE}/reserva/obtener-monto`,
+          { estado_pago: estadoPago, cancha: nueva.cancha },
+          { headers: { 'x-token': token } }
+        );
+
+        if (!data.ok) throw new Error('Monto no disponible');
+        const monto = Number(data.monto || 0);
+
+        if (estadoPago === 'TOTAL') {
+          monto_cancha = monto; monto_sena = 0;
+        } else if (estadoPago === 'SEÑA') {
+          monto_sena = monto; monto_cancha = 0;
+        } else {
+          monto_cancha = 0; monto_sena = 0;
+        }
+      } catch {
+        // fallback: leer configuración directo
+        const conf = await prisma.configuracion.findUnique({ where: { canchaId: destCancha.id } });
+        const mC = Number(conf?.monto_cancha || 0);
+        const mS = Number(conf?.monto_sena || 0);
+        if (estadoPago === 'TOTAL') { monto_cancha = mC; monto_sena = 0; }
+        else if (estadoPago === 'SEÑA') { monto_sena = mS; monto_cancha = 0; }
+        else { monto_cancha = 0; monto_sena = 0; }
+      }
+    }
+
+    // 7) Chequeo de colisión SOLO si cambia la combinación (cancha/hora)
+    const cambiaCancha = destCancha.id !== actual.canchaId;
+    const cambiaHora   = nuevaHora !== actual.hora;
+    if (cambiaCancha || cambiaHora) {
+      const ocupado = await prisma.reserva.findFirst({
+        where: {
+          id: { not: actual.id },
+          canchaId: destCancha.id,
+          fechaCopia: actual.fechaCopia,   // el día NO cambia en V1
+          hora: nuevaHora,
+          estado: 'activo',
+        },
+        select: { id: true }
+      });
+      if (ocupado) {
+        return res.status(409).json({ ok: false, msg: 'Turno ocupado para esa cancha, fecha y hora' });
+      }
+    }
+
+    // 8) Usuario (para .user)
+    const uid = req.uid ?? req.id ?? null;
+    const usuario = uid ? await prisma.usuario.findUnique({ where: { id: Number(uid) } }) : null;
+
+    // 9) Construir data de update (solo campos reales como en tu "camposValidos")
+    const dataUpdate = {
+    // relaciones si cambiaron
+    canchaId: destCancha.id,
+    clienteId: destCliente ? destCliente.id : undefined,
+
+    // básicos
+    cliente: undefined, // NO existe esta columna; tu front manda DNI pero en SQL usamos clienteId
+
+    estado_pago: estadoPago,
+    monto_cancha,
+    monto_sena,
+    hora: nuevaHora,
+    forma_pago: nueva.forma_pago ?? actual.forma_pago,
+    observacion: nueva.observacion ?? actual.observacion,
+
+    // compat calendario y nombres:
+    title: nueva.title ?? destCancha.nombre,
+
+    // fecha/start/end NO cambian de día; reanclamos al mismo día (03:00Z)
+    fecha: anchorDateObj(actual.fechaCopia),
+    start: anchorDateObj(actual.fechaCopia),
+    end:   anchorDateObj(actual.fechaCopia),
+
+    // user visible y datos del cliente (si mandaron otro DNI, refrescamos nombres)
+    user: nueva.user ?? usuario?.user ?? actual.user,
+    nombreCliente: destCliente ? destCliente.nombre   : (nueva.nombreCliente   ?? actual.nombreCliente),
+    apellidoCliente: destCliente ? destCliente.apellido : (nueva.apellidoCliente ?? actual.apellidoCliente),
+  };
+
+  // limpiar undefined (Prisma no acepta undefined en algunas versiones)
+  Object.keys(dataUpdate).forEach(k => dataUpdate[k] === undefined && delete dataUpdate[k]);
+
+  // 10) Actualizar + histórico (transacción)
+    let updated;
+    await prisma.$transaction(async (tx) => {
+      updated = await tx.reserva.update({ where: { id: actual.id }, data: dataUpdate });
+
+      const nextVersion = (await tx.reservaHist.count({ where: { reservaId: actual.id } })) + 1;
+      await tx.reservaHist.create({
+        data: {
+          reservaId: updated.id,
+          version: nextVersion,
+          action: 'ACTUALIZAR',
+          changedById: usuario?.id ?? null,
+
+          clienteId: updated.clienteId,
+          canchaId: updated.canchaId,
+          usuarioId: updated.usuarioId,
+          estado_pago: updated.estado_pago,
+          forma_pago: updated.forma_pago,
+          estado: updated.estado,
+          monto_cancha: updated.monto_cancha,
+          monto_sena: updated.monto_sena,
+          fecha: updated.fecha,
+          fechaCopia: updated.fechaCopia,
+          hora: updated.hora,
+          title: updated.title,
+          start: updated.start,
+          end: updated.end,
+          nombreCliente: updated.nombreCliente,
+          apellidoCliente: updated.apellidoCliente,
+          user: updated.user,
+          observacion: updated.observacion,
+        }
+      });
+    });
+
+    // 11) Email (formateo con ancla 03:00Z como ya hicimos en crear)
+    try {
+      // email del cliente (si cambiaron el DNI usamos el nuevo)
+      const cli = await prisma.cliente.findUnique({ where: { id: updated.clienteId } });
+      if (typeof enviarCorreoReservaActualizada === 'function' && cli?.email) {
+        const fechaFormateada = anchorDateObj(updated.fechaCopia).toLocaleDateString(
+          'es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }
+        );
+        await enviarCorreoReservaActualizada(cli.email, {
+          cancha: (await prisma.cancha.findUnique({ where: { id: updated.canchaId } })).nombre,
+          fecha: fechaFormateada,
+          hora: updated.hora,
+          nombre: `${updated.nombreCliente} ${updated.apellidoCliente}`,
+          estado: updated.estado_pago,
+          observacion: updated.observacion || '',
+        });
+      }
+    } catch (e) {
+      console.warn('Email de reserva actualizada falló:', e?.message);
+    }
+
+    // 12)Formateo respuesta antes de mandar al front
+    const out = {
+      ...updated,
+      monto_cancha: Number(updated.monto_cancha || 0),
+      monto_sena: Number(updated.monto_sena || 0),
+      fecha: anchorDateObj(updated.fechaCopia),
+      start: anchorDateObj(updated.fechaCopia),
+      end: anchorDateObj(updated.fechaCopia),
+      fechaCopia: anchorDateObj(updated.fechaCopia),
+    };
+
+    return res.status(200).json({ ok: true, reserva: out, msg: 'Reserva actualizada' });
+
+  } catch (error) {
+    if (error.code === 'P2002') {
+      // por si el índice único parcial se dispara
+      return res.status(409).json({ ok: false, msg: 'Turno ocupado para esa cancha, fecha y hora' });
+    }
+    console.error(error);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+// ============================================== CANCELAR_RESERVA===========================================
+async function eliminarReserva(req, res) {
+  const id = Number(req.params.id);
+
+  try {
+     // 1) Buscar reserva
+    const reserva = await prisma.reserva.findUnique({ where: { id } });
+    if (!reserva) {
+      return res.status(400).json({ ok: false, msg: 'La reserva no existe' });
+    }
+    // 2) Si ya estaba inactiva, respondemos igual que en Mongo 
+    if (reserva.estado === 'inactivo') {
+      return res.json({ ok: true, msg: 'Reserva Eliminada' });
+    }
+    // 3) Usuario que hace el cambio (para histórico)
+    const uid = req.uid ?? req.id ?? null;
+
+    // 4) Transacción: marcar inactivo + histórico "CANCELAR"
+    let borrada;
+    await prisma.$transaction(async (tx) => {
+      borrada = await tx.reserva.update({
+        where: { id },
+        data: { estado: 'inactivo' },
+      });
+
+      const nextVersion = (await tx.reservaHist.count({ where: { reservaId: id } })) + 1;
+
+      await tx.reservaHist.create({
+        data: {
+          reservaId: id,
+          version: nextVersion,
+          action: 'CANCELAR',
+          changedById: uid ? Number(uid) : null,
+
+          // snapshot completo (igual que en crear/actualizar)
+          clienteId: borrada.clienteId,
+          canchaId: borrada.canchaId,
+          usuarioId: borrada.usuarioId,
+          estado_pago: borrada.estado_pago,
+          forma_pago: borrada.forma_pago,
+          estado: borrada.estado,
+          monto_cancha: borrada.monto_cancha,
+          monto_sena: borrada.monto_sena,
+          fecha: borrada.fecha,
+          fechaCopia: borrada.fechaCopia,
+          hora: borrada.hora,
+          title: borrada.title,
+          start: borrada.start,
+          end: borrada.end,
+          nombreCliente: borrada.nombreCliente,
+          apellidoCliente: borrada.apellidoCliente,
+          user: borrada.user,
+          observacion: borrada.observacion,
+        },
+      });
+    });
+
+    
+  } catch (error) {
+    
+  }
+
+}
 module.exports = {
   crearReserva,
+  actualizarReserva,
+  eliminarReserva,
   obtenerMontoPorEstado, 
   obtenerHorasDisponibles
 };
