@@ -591,17 +591,199 @@ async function eliminarReserva(req, res) {
         },
       });
     });
+     // 5) Email al cliente (con ancla 03:00Z para la fecha)
+    try {
+      const cli = await prisma.cliente.findUnique({ where: { id: reserva.clienteId } });
+      const cancha = await prisma.cancha.findUnique({ where: { id: reserva.canchaId } });
+
+      if (typeof enviarCorreoReservaEliminada === 'function' && cli?.email) {
+        const fechaFormateada = anchorDateObj(reserva.fechaCopia).toLocaleDateString(
+          'es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }
+        );
+
+        await enviarCorreoReservaEliminada(cli.email, {
+          cancha: cancha?.nombre || reserva.title || '',
+          fecha: fechaFormateada,
+          hora: reserva.hora,
+          nombre: `${reserva.nombreCliente} ${reserva.apellidoCliente}`,
+          estado: reserva.estado_pago,
+          observacion: reserva.observacion || '',
+        });
+      }
+    } catch (e) {
+      console.warn('Email de reserva eliminada falló:', e?.message);
+    }
+    // 6) Respuesta (como en Mongo)
+    return res.json({ ok: true, msg: 'Reserva Eliminada' });
 
     
   } catch (error) {
-    
+    console.error(error);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 
+}
+
+// ============================================== SECCIÓN_CONSULTAS===========================================
+//================================================TRAIGO_POR_FECHA_CANCHA====================================
+
+async function getReservaFechaCancha(req, res) {
+  try {
+    const { fecha, cancha } = req.params;
+
+    // normalizo el día a DATE (00:00Z)
+    const dayUTC = new Date(`${fecha}T00:00:00Z`);
+
+    // paginación (compat Mongo: ?desde & ?limite) + soporte page opcional
+    const q = req.query || {};
+    const limit  = Number(q.limite ?? q.limit ?? 10);
+    const page   = q.page ? Math.max(1, Number(q.page)) : null;
+    const desde  = page ? (page - 1) * limit : Number(q.desde ?? 0);
+    const skip   = Math.max(0, desde);
+    const take   = Math.max(1, Math.min(100, limit)); // cap de seguridad
+
+    // cancha por NOMBRE
+    const canchaRow = await prisma.cancha.findUnique({ where: { nombre: cancha } });
+    if (!canchaRow) {
+      return res.status(400).json({ ok: false, msg: 'No existe cancha' });
+    }
+
+    // where base: mismo día + cancha + solo ACTIVAS
+    const where = {
+      fechaCopia: dayUTC,
+      canchaId: canchaRow.id,
+      estado: 'activo',
+    };
+
+    // total para paginación
+    const total = await prisma.reserva.count({ where });
+
+    // fetch página
+    const rows = await prisma.reserva.findMany({
+      where,
+      orderBy: [{ hora: 'asc' }, { id: 'asc' }], 
+      skip,
+      take,
+    });
+
+    // salida formateada (montos a Number y fechas con ancla 03:00Z)
+    const reservas = rows.map(r => ({
+      ...r,
+      monto_cancha: Number(r.monto_cancha || 0),
+      monto_sena: Number(r.monto_sena || 0),
+      fecha: anchorDateObj(r.fechaCopia),
+      start: anchorDateObj(r.fechaCopia),
+      end:   anchorDateObj(r.fechaCopia),
+      fechaCopia: anchorDateObj(r.fechaCopia),
+    }));
+
+    // armo la metadata de paginación 
+    const response = {
+      ok: true,
+      total,
+      reservas,
+      limite: take,
+      desde: skip,
+    };
+    if (page) {
+      response.page = page;
+      response.pages = Math.max(1, Math.ceil(total / take));
+    }
+
+    return res.json(response);
+
+  } catch (error) {
+    console.error('getReservaFechaCancha error:', error);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+//================================================TRAIGO_POR_CLINETE_RANGO_CANCHA====================================
+async function getReservaClienteRango(req, res) {
+  try {
+      const { cliente: dni, fechaIni, fechaFin } = req.params;
+      
+      // 0) Validaciones rápidas
+      if (!dni) return res.status(400).json({ ok: false, msg: 'Debe indicar el cliente' });
+      if (!fechaIni || !fechaFin) {
+        return res.status(400).json({ ok: false, msg: 'Debe indicar fechaIni y fechaFin' });
+      }
+
+      console.log("entrada",fechaIni)
+      console.log("entrada",fechaFin)
+      
+
+      // normalizo a DATE (00:00Z) y rango inclusivo
+      const ini = new Date(`${fechaIni}T00:00:00Z`);
+      const fin = new Date(`${fechaFin}T00:00:00Z`);
+      console.log("Transformada: ",ini)
+      console.log("Transformada: ",fin)
+      
+      if (isNaN(ini) || isNaN(fin) || ini > fin) {
+        return res.status(400).json({ ok: false, msg: 'Rango de fechas inválido' });
+      }
+
+      // buscar cliente por DNI
+      const cliente = await prisma.cliente.findUnique({ where: { dni: String(dni) } });
+      if (!cliente) return res.status(404).json({ ok: false, msg: 'Cliente no encontrado' });
+
+      // paginación (compat Mongo: desde/limite) + page opcional
+      const q = req.query || {};
+      const limit = Number(q.limite ?? q.limit ?? 10);
+      const page  = q.page ? Math.max(1, Number(q.page)) : null;
+      const desde = page ? (page - 1) * limit : Number(q.desde ?? 0);
+      const skip  = Math.max(0, desde);
+      const take  = Math.max(1, Math.min(100, limit));
+
+      // where: cliente + rango + solo ACTIVO
+      const where = {
+        clienteId: cliente.id,
+        estado: 'activo',
+        fechaCopia: { gte: ini, lte: fin },
+      };
+
+      const total = await prisma.reserva.count({ where });
+
+      const rows = await prisma.reserva.findMany({
+        where,
+        orderBy: [{ fechaCopia: 'asc' }, { hora: 'asc' }, { id: 'asc' }],
+        skip,
+        take,
+      });
+
+        const reservas = rows.map(r => ({
+        ...r,
+        monto_cancha: Number(r.monto_cancha || 0),
+        monto_sena: Number(r.monto_sena || 0),
+        fecha: anchorDateObj(r.fechaCopia),
+        start: anchorDateObj(r.fechaCopia),
+        end:   anchorDateObj(r.fechaCopia),
+        fechaCopia: anchorDateObj(r.fechaCopia),
+      }));
+      
+      const resp = { 
+        ok: true, 
+        total, 
+        reservas, 
+        limite: take, 
+        desde: skip };
+
+      if (page) { 
+        resp.page = page; resp.pages = Math.max(1, Math.ceil(total / take)); 
+      }
+    return res.json(resp)
+    }  catch (err) {
+    console.error('getReservaClienteRango error:', err);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
 }
 module.exports = {
   crearReserva,
   actualizarReserva,
   eliminarReserva,
   obtenerMontoPorEstado, 
-  obtenerHorasDisponibles
+  obtenerHorasDisponibles,
+  //.......consultas.............
+  getReservaFechaCancha,
+  getReservaClienteRango
+
 };
