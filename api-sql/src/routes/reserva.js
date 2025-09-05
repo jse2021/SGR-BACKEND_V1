@@ -10,7 +10,9 @@ const {
   actualizarReserva,
   eliminarReserva,
   getReservaFechaCancha ,
-  getReservaClienteRango
+  getReservaClienteRango,
+  estadoReservasRango,
+  estadoRecaudacion
 } = require('../controllers/reserva.controller');
 
 const router = Router();
@@ -20,6 +22,8 @@ router.use(validarJWT);
 // 1) Prefijos fijos
 router.post('/horarios-disponibles', obtenerHorasDisponibles);
 router.post('/obtener-monto', obtenerMontoPorEstado);
+router.get('/estadoReservas/:estado_pago/:fechaIni/:fechaFin', estadoReservasRango);
+router.get('/recaudacion/:cancha/:fechaIni/:fechaFin', estadoRecaudacion);
 // 2) Parametrizadas “largas” (más específicas)
 router.get('/:cliente/:fechaIni/:fechaFin', getReservaClienteRango);
 router.get('/:fecha/:cancha', getReservaFechaCancha);
@@ -48,8 +52,6 @@ router.put('/eliminar/:id', eliminarReserva);
 module.exports = router;
 
 // router.get('/', getReserva);
-// router.get('/recaudacion/:cancha/:fechaIni/:fechaFin', estadoRecaudacion);
-// router.get('/estadoReservas/:estado_pago/:fechaIni/:fechaFin', estadoReservasRango);
 // router.get('/reservasEliminadas/:estado_pago/:fechaIni/:fechaFin', (req,res)=>res.status(501).json({ok:false,msg:'(opc) implementable similar a estadoReservasRango filtrando estado=inactivo'}));
 // router.get('/:fechaCopia/:cancha/:forma_pago/:estado_pago', recaudacionFormasDePago);
 

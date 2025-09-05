@@ -697,7 +697,7 @@ async function getReservaFechaCancha(req, res) {
     return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 }
-//================================================TRAIGO_POR_CLINETE_RANGO_CANCHA====================================
+//================================================TRAIGO_POR_CLIENTE_RANGO_CANCHA====================================
 async function getReservaClienteRango(req, res) {
   try {
       const { cliente: dni, fechaIni, fechaFin } = req.params;
@@ -776,6 +776,237 @@ async function getReservaClienteRango(req, res) {
     return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 }
+//================================================RANGO_FECHAS->POR_ESTADO_PAGO====================================
+async function estadoReservasRango(req, res) {
+  try {
+      const { estado_pago, fechaIni, fechaFin } = req.params;
+
+      // 0) Validaciones
+      const ESTADOS = new Set(['TOTAL', 'SEÑA', 'IMPAGO']);
+      if (!ESTADOS.has(String(estado_pago).toUpperCase())) {
+        return res.status(400).json({ ok: false, msg: 'estado_pago inválido' });
+      }
+        const sIni = String(fechaIni).trim();
+        const sFin = String(fechaFin).trim();
+        const YMD = /^\d{4}-\d{2}-\d{2}$/;
+
+
+        /**
+         * este codigo es para evitar fechas invalidas, ejemplo que vengan con espacios 
+          las limpia y formatea
+        */
+        if (!YMD.test(sIni) || !YMD.test(sFin)) {
+          return res.status(400).json({ ok: false, msg: 'Rango de fechas inválido' });
+        }
+
+        // Parte las fechas y convierte cada pedazo a número
+        const [y1, m1, d1] = sIni.split('-').map(Number);
+        const [y2, m2, d2] = sFin.split('-').map(Number);
+
+        // Crea objetos Date en UTC, a las 00:00:00 de cada día --->2025-09-01T00:00:00.000Z
+        // UTC evita problemas de huso horario (no te corre el día).
+        const ini = new Date(Date.UTC(y1, m1 - 1, d1));  
+        const fin = new Date(Date.UTC(y2, m2 - 1, d2));  
+
+        if (isNaN(ini) || isNaN(fin) || ini > fin) {
+          return res.status(400).json({ ok: false, msg: 'Rango de fechas inválido' });
+        }
+
+        // 1) Paginación
+        const q = req.query || {};
+        const limit = Number(q.limite ?? q.limit ?? 10);
+        const page  = q.page ? Math.max(1, Number(q.page)) : null;
+        const desde = page ? (page - 1) * limit : Number(q.desde ?? 0);
+        const skip  = Math.max(0, desde);
+        const take  = Math.max(1, Math.min(100, limit));
+
+        // 2) Filtro: estado activo, estado_pago, rango de días
+        const where = {
+          estado: 'activo',
+          estado_pago: String(estado_pago).toUpperCase(),
+          fechaCopia: { gte: ini, lte: fin },
+        };
+
+        const total = await prisma.reserva.count({ where });
+
+        const rows = await prisma.reserva.findMany({
+          where,
+          orderBy: [{ fechaCopia: 'asc' }, { hora: 'asc' }, { id: 'asc' }],
+          skip,
+          take,
+        });
+
+        // 3) Respuesta amigable para el front (montos a number y fechas ancladas 03:00Z)
+        const reservas = rows.map(r => ({
+          ...r,
+          monto_cancha: Number(r.monto_cancha || 0),
+          monto_sena:   Number(r.monto_sena   || 0),
+          fecha:        anchorDateObj(r.fechaCopia),
+          start:        anchorDateObj(r.fechaCopia),
+          end:          anchorDateObj(r.fechaCopia),
+          fechaCopia:   anchorDateObj(r.fechaCopia),
+        }));
+
+        const resp = { ok: true, total, reservas, limite: take, desde: skip };
+        if (page) { resp.page = page; resp.pages = Math.max(1, Math.ceil(total / take)); }
+
+        return res.json(resp);
+    
+  } catch (err) {
+    console.error('estadoReservasRango error:', err);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+//================================================RECAUDACION-->RANGO_FECHA_CANCHA====================================
+async function estadoRecaudacion(req, res) {
+  try {
+
+      const { cancha, fechaIni, fechaFin } = req.params;
+
+      // 0) Validaciones de fechas (trim + formato YYYY-MM-DD + construir UTC 00:00)
+      const sIni = String(fechaIni).trim();
+      const sFin = String(fechaFin).trim();
+      const YMD = /^\d{4}-\d{2}-\d{2}$/;
+      if (!YMD.test(sIni) || !YMD.test(sFin)) {
+        return res.status(400).json({ ok: false, msg: 'Rango de fechas inválido' });
+      }
+      const [y1, m1, d1] = sIni.split('-').map(Number);
+      const [y2, m2, d2] = sFin.split('-').map(Number);
+      
+      const ini = new Date(Date.UTC(y1, m1 - 1, d1));  // 00:00Z
+      const fin = new Date(Date.UTC(y2, m2 - 1, d2));  // 00:00Z
+      
+      if (isNaN(ini) || isNaN(fin) || ini > fin) {
+        return res.status(400).json({ ok: false, msg: 'Rango de fechas inválido' });
+      }
+
+      // 1) Cancha por NOMBRE 
+      const canchaRow = await prisma.cancha.findUnique({ where: { nombre: cancha } });
+      if (!canchaRow) {
+        return res.status(400).json({ ok: false, msg: 'No existe cancha' });
+      }
+
+      // 2) Paginación (estilo Mongo: ?desde & ?limite) + soporte page/limit
+      const q = req.query || {};
+      const limit = Number(q.limite ?? q.limit ?? 10);
+      const page  = q.page ? Math.max(1, Number(q.page)) : null;
+      const desde = page ? (page - 1) * limit : Number(q.desde ?? 0);
+      const skip  = Math.max(0, desde);
+      const take  = Math.max(1, Math.min(100, limit)); // tope sano
+
+      // 2.5) Traigo la configuración (para conocer el precio base de la cancha)
+      const conf = await prisma.configuracion.findUnique({ where: { canchaId: canchaRow.id } });
+      const precioBase = Number(conf?.monto_cancha || 0);
+
+        
+      // 3) Filtro base: SOLO activas + día dentro del rango + cancha
+      const where = {
+        estado: 'activo',
+        canchaId: canchaRow.id,
+        fechaCopia: { gte: ini, lte: fin },
+      };
+
+      // 4) Totales GLOBALes del rango (no de la página)
+        const [{ _sum }, total] = await Promise.all([//-->calcula la suma total de monto_cancha y monto_sena para todo lo que cumple where
+          prisma.reserva.aggregate({
+            where,
+            _sum: { monto_cancha: true, monto_sena: true },
+          }),
+          prisma.reserva.count({ where }),
+        ]);
+
+        const totalMontoCancha = Number(_sum.monto_cancha || 0);
+        const totalMontoSena   = Number(_sum.monto_sena   || 0);
+        // const totalCobrado     = totalMontoCancha + totalMontoSena;
+
+        // Deuda global = suma por reserva aplicando la regla TOTAL/SEÑA/IMPAGO
+        const allRowsForDebt = await prisma.reserva.findMany({
+          where,
+          select: { estado_pago: true, monto_sena: true } // sólo lo que necesito
+        });
+        const totalDeuda = allRowsForDebt.reduce((acc, r) => {
+          if (r.estado_pago === 'TOTAL') return acc + 0;
+          if (r.estado_pago === 'SEÑA')  return acc + Math.max(0, precioBase - Number(r.monto_sena || 0));
+          // IMPAGO u otros
+          return acc + precioBase;
+        }, 0);
+
+      // 5) Página de resultados (orden estable: día -> hora -> id)
+        const rows = await prisma.reserva.findMany({
+          where,
+          orderBy: [{ fechaCopia: 'asc' }, { hora: 'asc' }, { id: 'asc' }],
+          skip,
+          take,
+        });
+
+      // 6) Formato de salida (montos a Number, fechas ancladas a 03:00Z)
+        const reservas = rows.map(r => {
+        const consolidado = Number(r.monto_cancha || 0);
+        const senia       = Number(r.monto_sena   || 0);
+        let deuda = 0;
+        if (r.estado_pago === 'SEÑA') deuda = Math.max(0, precioBase - senia);
+        else if (r.estado_pago === 'IMPAGO') deuda = precioBase;
+
+        return {
+          ...r,
+          monto_cancha: consolidado,
+          monto_sena:   senia,
+          monto_deuda:  deuda,
+
+          fecha:      anchorDateObj(r.fechaCopia),
+          start:      anchorDateObj(r.fechaCopia),
+          end:        anchorDateObj(r.fechaCopia),
+          fechaCopia: anchorDateObj(r.fechaCopia),
+        };
+      });
+
+      // 6.5) Resumen DIARIO
+        const byDay = new Map(); // clave: 'YYYY-MM-DD' (de r.fechaCopia en UTC)
+        for (const r of reservas) {
+          const key = new Date(r.fechaCopia).toISOString().slice(0,10); // YYYY-MM-DD
+          const acc = byDay.get(key) || { 
+            fecha: anchorDateObj(new Date(key+'T00:00:00Z')), 
+            cancha: canchaRow.nombre,
+            total_consolidado: 0, 
+            total_senas: 0, 
+            total_deuda: 0 
+          };
+          acc.total_consolidado += r.monto_cancha;
+          acc.total_senas       += r.monto_sena;
+          acc.total_deuda       += r.monto_deuda;
+          byDay.set(key, acc);
+        }
+        const resumenDiario = Array.from(byDay.values())
+          .sort((a,b) => a.fecha - b.fecha); // orden por día asc
+          
+          // 7) Respuesta final
+          const resp = {
+            ok: true,
+            total,               // cantidad de reservas activas en el rango/cancha
+            reservas,            // página actual con monto_deuda
+            limite: take,
+            desde: skip,
+            totales: {           // totales GLOBALes del rango
+              cancha: canchaRow.nombre,
+              fechaIni: sIni,
+              fechaFin: sFin,
+              monto_cancha: totalMontoCancha,
+              monto_sena:   totalMontoSena,
+              monto_deuda:  totalDeuda,
+              total:        totalMontoCancha + totalMontoSena, // lo efectivamente cobrado
+            },
+            resumenDiario        // filas para la tabla: fecha, cancha, total_consolidado, total_senas, total_deuda
+          };
+          if (page) { resp.page = page; resp.pages = Math.max(1, Math.ceil(total / take)); }
+  
+          return res.json(resp);
+          
+  } catch (err) {
+    console.error('estadoRecaudacionRango error:', err);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+  
 module.exports = {
   crearReserva,
   actualizarReserva,
@@ -783,7 +1014,9 @@ module.exports = {
   obtenerMontoPorEstado, 
   obtenerHorasDisponibles,
   //.......consultas.............
-  getReservaFechaCancha,
-  getReservaClienteRango
+  getReservaFechaCancha,//-->ver de implementar limpieza de datos sucios como hice en estadoReservasRango
+  getReservaClienteRango,//-->ver de implementar limpieza de datos sucios como hice en estadoReservasRango
+  estadoReservasRango,
+  estadoRecaudacion
 
 };

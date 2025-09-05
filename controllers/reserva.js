@@ -993,11 +993,12 @@ module.exports = {
   crearReserva,
   actualizarReserva,
   eliminarReserva,
+  getCanchaHora,
+  obtenerHorasDisponibles,
+  obtenerMontoPorEstado,
+  //--------Reportes-----------
   estadoReservasRango,
   estadoRecaudacion,
   recaudacionFormasDePago,
   reservasEliminadasRango,
-  getCanchaHora,
-  obtenerHorasDisponibles,
-  obtenerMontoPorEstado,
 };
