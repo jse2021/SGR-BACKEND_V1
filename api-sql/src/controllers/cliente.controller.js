@@ -12,13 +12,13 @@ const norm = (obj) => obj && ({
   email: trim(obj.email)?.toLowerCase(),
 });
 
-///------------------------------CREAR-----------------------------------------------------------------------
+///===============================================CREAR_CLIENTE===================================================
 async function crearCliente(req, res) {
   try {
     const data = norm(req.body);
     const { dni, nombre, apellido, telefono, email } = data || {};
 
-    if (!dni || !nombre || !apellido) {
+   if (!dni || !nombre || !apellido) {
       return res.status(400).json({ ok: false, msg: 'dni, nombre y apellido son obligatorios' });
     }
     if (!/^\d+$/.test(dni)) {
@@ -28,7 +28,7 @@ async function crearCliente(req, res) {
       return res.status(400).json({ ok: false, msg: 'Email inválido' });
     }
 
-    // Duplicados (para dar mensajes claros como en Mongo)
+    // duplicados ->dni ->email
     const dupDni = await prisma.cliente.findFirst({ where: { dni }, select: { id: true, nombre: true, apellido: true, dni: true } });
     if (dupDni) {
       return res.status(400).json({
@@ -48,20 +48,42 @@ async function crearCliente(req, res) {
       }
     }
 
-    await prisma.cliente.create({
-      data: { dni, nombre, apellido, telefono: telefono || null, email: email || null },
+const uid = req.uid ?? null;              // id del usuario autenticado (para usuarioId)
+    const userName = req.userName ?? null;    // string del usuario si lo guardás (para user)
+
+    let creado;
+    await prisma.$transaction(async (tx) => {
+      // 1) Cliente
+      creado = await tx.cliente.create({
+        data: {
+          dni, nombre, apellido,
+          telefono: telefono || null,
+          email: email || null,
+          estado: 'activo',
+        },
+      });
+
+      // 2) Historial (versión = 1)
+      await tx.clienteHist.create({
+        data: {
+          clienteId: creado.id,
+          version: 1,
+          accion: 'CREAR',
+          usuarioId: uid ? Number(uid) : null,
+          user: userName,                 // << usa 'user' (no user2)
+          dni: creado.dni,
+          nombre: creado.nombre,
+          apellido: creado.apellido,
+          telefono: creado.telefono,
+          email: creado.email,
+          estado: creado.estado,
+        },
+      });
     });
 
-    return res.status(201).json({
-      ok: true,
-      msg: 'Cliente registrado exitosamente',
-      nombre, apellido,
-    });
+    return res.status(201).json({ ok: true, msg: 'Cliente registrado exitosamente', cliente: creado });
   } catch (e) {
-    // catch de unique (por si dos requests llegan “juntos”)
-    if (e.code === 'P2002') {
-      return res.status(400).json({ ok: false, msg: 'DNI o Email ya registrados' });
-    }
+    if (e.code === 'P2002') return res.status(400).json({ ok: false, msg: 'DNI o Email ya registrados' });
     console.error(e);
     return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }

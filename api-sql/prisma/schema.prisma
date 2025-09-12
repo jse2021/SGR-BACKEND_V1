@@ -15,9 +15,30 @@ model Cliente {
   telefono String?
   email    String?   @unique
   Reserva  Reserva[]
+  estado   String  @default("activo") // ← nuevo
 
   @@index([apellido, nombre])
 }
+
+model ClienteHist {
+  id         Int      @id @default(autoincrement())
+  version     Int
+  clienteId  Int
+  dni        String
+  nombre     String
+  apellido   String
+  telefono   String?
+  email      String?
+  accion     String   // CREAR | ACTUALIZAR | ELIMINAR
+  usuarioId  Int?
+  estado   String
+  user       String?
+  changedAt  DateTime @default(now())
+
+  @@index([clienteId, changedAt])
+}
+
+
 
 model Cancha {
   id            Int                 @id @default(autoincrement())

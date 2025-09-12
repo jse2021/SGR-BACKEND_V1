@@ -1006,6 +1006,234 @@ async function estadoRecaudacion(req, res) {
     return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 }
+//================================================RECAUDACIONFORMASDEPAGO====================================
+async function recaudacionFormasDePago(req, res) {
+  try {
+    const { fecha, cancha } = req.params;
+
+    // normalizo fecha (YYYY-MM-DD) -> 00:00Z
+    const sFecha = String(fecha).trim();
+    const YMD = /^\d{4}-\d{2}-\d{2}$/;
+    if (!YMD.test(sFecha)) {
+      return res.status(400).json({ ok: false, msg: 'Fecha inválida (YYYY-MM-DD)' });
+    }
+    const [y, m, d] = sFecha.split('-').map(Number);
+    const dayUTC = new Date(Date.UTC(y, m - 1, d)); 
+
+    // cancha por nombre
+    const canchaRow = await prisma.cancha.findUnique({ where: { nombre: cancha } });
+    if (!canchaRow) return res.status(400).json({ ok: false, msg: 'No existe cancha' });
+
+    // normalizo forma_pago y estado_pago (permito "SENA" -> "SEÑA", y "TODAS") //------------------> dudas
+    const norm = (s='') => String(s).trim().toUpperCase();
+    let forma = norm(req.params.forma_pago || 'TODAS');
+    let estadoPago = norm(req.params.estado_pago || 'TODAS');
+    if (forma === 'SENA') forma = 'SEÑA';
+
+    // paginación
+    const q = req.query || {};
+    const limit = Number(q.limite ?? q.limit ?? 10);
+    const page  = q.page ? Math.max(1, Number(q.page)) : null;
+    const desde = page ? (page - 1) * limit : Number(q.desde ?? 0);
+    const skip  = Math.max(0, desde);
+    const take  = Math.max(1, Math.min(100, limit));
+
+    // filtro base: solo activas, día exacto, cancha
+    const whereBase = { estado: 'activo', canchaId: canchaRow.id, fechaCopia: dayUTC };
+
+    // agrego forma_pago si no es TODAS//--------------------------------------------------------------->dudas
+    const withForma = (forma && forma !== 'TODAS')
+      ? { ...whereBase, forma_pago: forma }
+      : whereBase;
+
+    // agrego estado_pago si no es TODAS
+    const where = (estadoPago && estadoPago !== 'TODAS')
+      ? { ...withForma, estado_pago: estadoPago }
+      : withForma;
+
+    // precio base de la cancha (para deuda SEÑA/IMPAGO)
+    const conf = await prisma.configuracion.findUnique({ where: { canchaId: canchaRow.id } });
+    const precioBase = Number(conf?.monto_cancha || 0);
+
+    // totales globales del día/cancha/filtros
+    const [{ _sum }, total] = await Promise.all([//--------------------------------------------------------------->dudas
+      prisma.reserva.aggregate({ where, _sum: { monto_cancha: true, monto_sena: true } }),
+      prisma.reserva.count({ where }),
+    ]);
+    const totalMontoCancha = Number(_sum.monto_cancha || 0);
+    const totalMontoSena   = Number(_sum.monto_sena   || 0);
+
+    // deuda global (por estado_pago de cada fila)
+    const rowsForDebt = await prisma.reserva.findMany({
+      where,
+      select: { estado_pago: true, monto_sena: true }
+    });
+    const totalDeuda = rowsForDebt.reduce((acc, r) => {
+      if (r.estado_pago === 'TOTAL') return acc;
+      if (r.estado_pago === 'SEÑA')  return acc + Math.max(0, precioBase - Number(r.monto_sena || 0));
+      return acc + precioBase; // IMPAGO
+    }, 0);
+
+    // página de resultados (incluye estado_pago)
+    const rows = await prisma.reserva.findMany({
+      where,
+      orderBy: [{ hora: 'asc' }, { id: 'asc' }],
+      skip,
+      take,
+    });
+
+    // salida: montos numéricos, fechas 03:00Z, deuda por fila, y estado_pago presente
+    const reservas = rows.map(r => {
+      const consolidado = Number(r.monto_cancha || 0);
+      const senia       = Number(r.monto_sena   || 0);
+      let deuda = 0;
+      if (r.estado_pago === 'SEÑA') 
+        deuda = Math.max(0, precioBase - senia);
+      else if (r.estado_pago === 'IMPAGO') deuda = precioBase;
+
+      return {
+        ...r, // incluye r.estado_pago
+        monto_cancha: consolidado,
+        monto_sena:   senia,
+        monto_deuda:  deuda,
+        fecha:      anchorDateObj(r.fechaCopia),
+        start:      anchorDateObj(r.fechaCopia),
+        end:        anchorDateObj(r.fechaCopia),
+        fechaCopia: anchorDateObj(r.fechaCopia),
+      };
+    });
+
+     const resp = {
+      ok: true,
+      total,
+      reservas,
+      limite: take,
+      desde: skip,
+      filtro: {
+        fecha: sFecha,
+        cancha: canchaRow.nombre,
+        forma_pago: (forma && forma !== 'TODAS') ? forma : 'TODAS',
+        estado_pago: (estadoPago && estadoPago !== 'TODAS') ? estadoPago : 'TODAS',
+      },
+      totales: {
+        monto_cancha: totalMontoCancha,
+        monto_sena:   totalMontoSena,
+        monto_deuda:  totalDeuda,
+        total:        totalMontoCancha + totalMontoSena
+      }
+    };
+
+    if (page) { resp.page = page; resp.pages = Math.max(1, Math.ceil(total / take)); }
+    return res.json(resp);
+
+  } catch (err) {
+    console.error('recaudacionFormasDePago error:', err);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    
+  }
+
+}
+//================================================RESERVAS_ELIMINADAS====================================
+async function reservasEliminadasRango(req, res) {
+  try {
+
+    const { estado_pago, fechaIni, fechaFin } = req.params;
+
+    // 1) normalizo y valido fechas YYYY-MM-DD (rango inclusivo)
+    const YMD = /^\d{4}-\d{2}-\d{2}$/;
+    const sIni = String(fechaIni).trim();
+    const sFin = String(fechaFin).trim();
+    if (!YMD.test(sIni) || !YMD.test(sFin)) {
+      return res.status(400).json({ ok: false, msg: 'Rango de fechas inválido' });
+    }
+    const [y1,m1,d1] = sIni.split('-').map(Number);
+    const [y2,m2,d2] = sFin.split('-').map(Number);
+    const ini = new Date(Date.UTC(y1, m1-1, d1)); // 00:00Z
+    const fin = new Date(Date.UTC(y2, m2-1, d2)); // 00:00Z
+    if (isNaN(ini) || isNaN(fin) || ini > fin) {
+      return res.status(400).json({ ok: false, msg: 'Rango de fechas inválido' });
+    }
+
+    // 2) paginación (soporta ?page&limit y ?desde&limite)
+    const q = req.query || {};
+    const limit = Number(q.limit ?? q.limite ?? 10);
+    const pageQ = q.page ? Math.max(1, Number(q.page)) : null;
+    const desde = pageQ ? (pageQ-1)*limit : Number(q.desde ?? 0);
+    const skip  = Math.max(0, desde);
+    const page  = pageQ ?? (Math.floor(skip/limit) + 1);
+
+    // 3) filtro base: inactivas + rango por día
+    const where = {
+      estado: 'inactivo',
+      fechaCopia: { gte: ini, lte: fin },
+    };
+
+    // 3.1) filtro por estado_pago (TODAS no filtra). Acepto SENA -> SEÑA
+    let estado = String(estado_pago || 'TODAS').trim().toUpperCase();
+    if (estado === 'SENA') estado = 'SEÑA';
+    if (estado !== 'TODAS') where.estado_pago = estado;
+
+     // 4) total y página de resultados (orden estable)
+    const [totalItems, rows] = await Promise.all([
+      prisma.reserva.count({ where }),
+      prisma.reserva.findMany({
+        where,
+        orderBy: [{ fechaCopia: 'asc' }, { hora: 'asc' }, { id: 'asc' }],
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    if (totalItems === 0) {
+      return res.status(404).json({
+        ok: false,
+        msg: 'No se encontraron reservas en el rango de fechas especificado',
+        reservasFormateadas: [],
+        totalPages: 1,
+      });
+    }
+
+    // 5) salida igual a Mongo: base + campos según estado_pago
+    const reservasFormateadas = rows.map(r => {
+      const base = {
+        nombre:   r.nombreCliente,
+        apellido: r.apellidoCliente,
+        fecha:    anchorDateObj(r.fechaCopia), // T03:00:00.000Z para compat
+        cancha:   r.title,                      // nombre de la cancha
+        hora:     r.hora,
+        estadoPago: r.estado_pago,
+        estado:     r.estado,
+        usuario:    r.user,
+      };
+      const monto_total = Number(r.monto_cancha || 0);
+      const monto_sena  = Number(r.monto_sena   || 0);
+
+      switch (estado) {
+        case 'TOTAL': return { ...base, monto_total };
+        case 'SEÑA' : return { ...base, monto_sena };
+        case 'IMPAGO': return base;
+        default: // TODAS
+          return { ...base, monto_total, monto_sena };
+      }
+    });
+
+    return res.status(200).json({
+      ok: true,
+      reservasFormateadas,
+      page,
+      totalPages: Math.max(1, Math.ceil(totalItems / limit)),
+      totalItems,
+      msg: 'Estado de las reservas eliminadas',
+    });
+
+
+   
+  } catch (err) {
+    console.error('reservasEliminadasRango error:', err);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+
   
 module.exports = {
   crearReserva,
@@ -1017,6 +1245,8 @@ module.exports = {
   getReservaFechaCancha,//-->ver de implementar limpieza de datos sucios como hice en estadoReservasRango
   getReservaClienteRango,//-->ver de implementar limpieza de datos sucios como hice en estadoReservasRango
   estadoReservasRango,
-  estadoRecaudacion
+  estadoRecaudacion,
+  recaudacionFormasDePago,
+  reservasEliminadasRango
 
 };
