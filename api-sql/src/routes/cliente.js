@@ -17,10 +17,11 @@ router.use(validarJWT); // todas protegidas
 
 router.post('/', crearCliente);
 router.get('/', getCliente);
+router.put('/eliminar/:id', eliminarCliente);
 router.get('/apellido/:apellido', getClientePorApellido);
 router.get('/buscar/:termino', buscarCliente);         
 router.put('/:id', actualizarCliente);
-router.delete('/:id', eliminarCliente);
+
 
 module.exports = router;
 

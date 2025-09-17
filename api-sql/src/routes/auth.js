@@ -51,6 +51,6 @@ router.get('/:apellido', getUsuarioPorUser);
 router.put('/actualizar/:id', actualizarUsuario);
 
 // protegida
-router.delete('/:id', validarJWT, eliminarUsuario);
+router.put('/:id', validarJWT, eliminarUsuario);
 
 module.exports = router;

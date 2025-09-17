@@ -1,4 +1,6 @@
 const { prisma } = require('../db');
+const { contarReservasCliente } = require('../helpers/contarReservasCliente');
+
 
 
 // Normaliza strings (trim y email en minúsculas)
@@ -89,8 +91,8 @@ const uid = req.uid ?? null;              // id del usuario autenticado (para us
   }
 }
 
-// ------------------------- BUSCAR----------------------------------------------------------
-// GET /cliente/buscar/:termino?page=1&limit=5
+// ===================================== BUSCAR==========================================================
+
 async function buscarCliente(req, res) {
   const termino = (req.params.termino || '').trim();
   const page = Math.max(parseInt(req.query.page || '1', 10), 1);
@@ -99,15 +101,24 @@ async function buscarCliente(req, res) {
 
   try {
     const q = termino.toLowerCase();
+    // siempre filtramos por activos
+    const baseWhere = { estado: 'activo' };
+
+    // si hay término, sumamos el OR de nombre/apellido/dni
     const where = termino
       ? {
-          OR: [
-            { nombre:   { contains: q, mode: 'insensitive' } },
-            { apellido: { contains: q, mode: 'insensitive' } },
-            { dni:      { contains: termino } }, // DNI como string numérica
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { nombre:   { contains: q, mode: 'insensitive' } },
+                { apellido: { contains: q, mode: 'insensitive' } },
+                { dni:      { contains: termino } }, // dni como string
+              ],
+            },
           ],
         }
-      : {};
+      : baseWhere;
 
     const [clientes, total] = await Promise.all([
       prisma.cliente.findMany({
@@ -132,7 +143,7 @@ async function buscarCliente(req, res) {
     return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 }
-// ------------------------- GET TODOS ------------------------------------------------------------------
+// ================================ GET TODOS =======================================================
 async function getCliente(_req, res) {
   try {
     const clientes = await prisma.cliente.findMany({
@@ -144,11 +155,11 @@ async function getCliente(_req, res) {
     return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 }
-// ------------------------- GET POR APELLIDO -------------------------
+// ===================================== GET POR APELLIDO =========================================
 async function getClientePorApellido(req, res) {
   const { apellido } = req.params;
   try {
-    const cliente = await prisma.cliente.findMany({ where: { apellido } });
+    const cliente = await prisma.cliente.findMany({ where: { apellido }  });
     if (!cliente || cliente.length === 0) {
       return res.status(400).json({ ok: false, msg: 'El cliente no existe en la base de datos' });
     }
@@ -158,48 +169,91 @@ async function getClientePorApellido(req, res) {
     return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 }
-// ------------------------- ACTUALIZAR -------------------------
+// ================================= ACTUALIZAR ===================================================
+
 async function actualizarCliente(req, res) {
   try {
     const id = Number(req.params.id);
-    const data = norm(req.body);
+    const { nombre, apellido, telefono, email, dni } = req.body || {};
 
+    // 1) Existe el cliente
     const cliente = await prisma.cliente.findUnique({ where: { id } });
-    if (!cliente) return res.status(404).json({ ok: false, msg: 'Cliente no encontrado' });
+    if (!cliente) {
+      return res.status(404).json({ ok: false, msg: 'Cliente no encontrado' });
+    }
 
-    // (1) Cambio de DNI -> deshabilitado
-    if (data?.dni && data.dni !== cliente.dni) {
+    // 2) No permitimos cambiar DNI
+    if (dni && dni !== cliente.dni) {
       return res.status(400).json({
         ok: false,
         msg: 'Cambio de DNI deshabilitado para evitar inconsistencias con reservas. Cree un cliente nuevo.',
       });
     }
 
-    // (2) Validar email si cambia
-    if (data?.email && data.email !== cliente.email) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+    // 3) Validar email si viene y no es el mismo
+    if (email && email !== cliente.email) {
+      const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!regexEmail.test(email)) {
         return res.status(400).json({ ok: false, msg: 'Email inválido' });
       }
-      const emailExistente = await prisma.cliente.findFirst({
-        where: { email: data.email, NOT: { id } },
+      const emailTomado = await prisma.cliente.findFirst({
+        where: { email, NOT: { id } },
         select: { id: true },
       });
-      if (emailExistente) {
+      if (emailTomado) {
         return res.status(400).json({ ok: false, msg: 'El email ya está registrado por otro cliente' });
       }
     }
 
-    const actualizado = await prisma.cliente.update({
-      where: { id },
-      data: {
-        nombre:   data?.nombre   ?? undefined,
-        apellido: data?.apellido ?? undefined,
-        telefono: data?.telefono ?? undefined,
-        email:    data?.email    ?? undefined,
-      },
+    // 4) Normalizo opcionales (vacío -> null) para no pisar con cadenas vacías
+    const toNull = (v) => (v === '' || v === undefined ? null : v);
+
+    const uid      = req.uid ?? null;         // id del usuario logueado (middleware JWT)
+    const userName = req.userName ?? null;    // string del usuario, si lo guardás
+
+    let actualizado;
+
+    await prisma.$transaction(async (tx) => {
+      // 5) Update en Cliente
+      actualizado = await tx.cliente.update({
+        where: { id },
+        data: {
+          nombre:   nombre   ?? undefined,
+          apellido: apellido ?? undefined,
+          telefono: toNull(telefono) ?? undefined,
+          email:    toNull(email)    ?? undefined,
+          // estado:  'activo' | 'inactivo' (no lo tocamos acá)
+        },
+      });
+
+      // 6) Calcular siguiente versión de histórico
+      const prev = await tx.clienteHist.count({ where: { clienteId: id } });
+      const nextVersion = prev + 1;
+
+      // 7) Snapshot en ClienteHist
+      await tx.clienteHist.create({
+        data: {
+          clienteId: id,
+          version: nextVersion,
+          accion: 'ACTUALIZAR',
+          usuarioId: uid ? Number(uid) : null,
+          user: userName,
+          dni: actualizado.dni,
+          nombre: actualizado.nombre,
+          apellido: actualizado.apellido,
+          telefono: actualizado.telefono,
+          email: actualizado.email,
+          estado: actualizado.estado, // se guarda el estado actual del cliente
+          // changedAt lo completa Prisma con @default(now())
+        },
+      });
     });
 
-    return res.json({ ok: true, usuario: actualizado, msg: 'Cliente actualizado correctamente' });
+    return res.json({
+      ok: true,
+      msg: 'Cliente actualizado correctamente',
+      cliente: actualizado,
+    });
   } catch (e) {
     if (e.code === 'P2002') {
       return res.status(400).json({ ok: false, msg: 'DNI o Email ya registrados' });
@@ -208,11 +262,9 @@ async function actualizarCliente(req, res) {
     return res.status(500).json({ ok: false, msg: 'Error al actualizar. Hable con el administrador.' });
   }
 }
-// ------------------------- ELIMINAR -------------------------
-/**
- * 
- *Implementar la actualizacion, en ves de eliminar 22/08
- */
+
+// ======================================== ELIMINAR =====================================================
+
 async function eliminarCliente(req, res) {
   const id = Number(req.params.id);
 
@@ -222,19 +274,53 @@ async function eliminarCliente(req, res) {
       return res.status(404).json({ ok: false, msg: 'Cliente inexistente' });
     }
 
-    // Cuando creemos la tabla Reserva: FK (clienteId) con ON DELETE RESTRICT
-    // y/o verificación:
-    // if (prisma.reserva) {
-    //   const reservasActivas = await prisma.reserva.count({ where: { clienteId: id, estado: 'activo' } });
-    //   if (reservasActivas > 0) {
-    //     return res.status(400).json({
-    //       ok: false,
-    //       msg: `No se puede eliminar el cliente porque tiene ${reservasActivas} reservas activas asociadas.`,
-    //     });
-    //   }
-    // }
+    //Bloqueo si tiene reservas asociadas (por defecto: activas)
+    const reservasAsociadas = await contarReservasCliente(id, true); 
+    if (reservasAsociadas > 0) {
+      return res.status(400).json({
+        ok: false,
+        msg: 'No se puede eliminar el cliente porque tiene reservas asociadas.',
+      });
+    }
 
-    await prisma.cliente.delete({ where: { id } });
+    // Si ya está inactivo, mantenemos el mismo mensaje que tu V1
+    if (cliente.estado === 'inactivo') {
+      return res.json({ ok: true, msg: 'Cliente Eliminado' });
+    }
+
+    const uid      = req.uid ?? null;       // id del usuario (JWT)
+    const userName = req.userName ?? null;  // nombre de usuario (si lo guardás)
+
+    await prisma.$transaction(async (tx) => {
+      // 1) marcar inactivo
+      const inactivado = await tx.cliente.update({
+        where: { id },
+        data: { estado: 'inactivo' },
+      });
+
+      // 2) versión siguiente del histórico
+      const nextVersion = (await tx.clienteHist.count({ where: { clienteId: id } })) + 1;
+
+      // 3) snapshot en ClienteHist
+      await tx.clienteHist.create({
+        data: {
+          clienteId: id,
+          version: nextVersion,
+          accion: 'INACTIVAR',              // (usa 'ELIMINAR' si preferís)
+          usuarioId: uid ? Number(uid) : null,
+          user: userName,
+          dni: inactivado.dni,
+          nombre: inactivado.nombre,
+          apellido: inactivado.apellido,
+          telefono: inactivado.telefono,
+          email: inactivado.email,
+          estado: inactivado.estado,        // 'inactivo'
+          // changedAt lo completa Prisma por @default(now())
+        },
+      });
+    });
+
+    // mismo texto que tu backend anterior para no romper el front
     return res.json({ ok: true, msg: 'Cliente Eliminado' });
   } catch (e) {
     console.error(e);

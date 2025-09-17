@@ -15,37 +15,35 @@ model Cliente {
   telefono String?
   email    String?   @unique
   Reserva  Reserva[]
-  estado   String  @default("activo") // ← nuevo
+  estado   String    @default("activo") // ← nuevo
 
   @@index([apellido, nombre])
 }
 
 model ClienteHist {
-  id         Int      @id @default(autoincrement())
-  version     Int
-  clienteId  Int
-  dni        String
-  nombre     String
-  apellido   String
-  telefono   String?
-  email      String?
-  accion     String   // CREAR | ACTUALIZAR | ELIMINAR
-  usuarioId  Int?
-  estado   String
-  user       String?
-  changedAt  DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  version   Int
+  clienteId Int
+  dni       String
+  nombre    String
+  apellido  String
+  telefono  String?
+  email     String?
+  accion    String // CREAR | ACTUALIZAR | ELIMINAR
+  usuarioId Int?
+  estado    String
+  user      String?
+  changedAt DateTime @default(now())
 
   @@index([clienteId, changedAt])
 }
 
-
-
 model Cancha {
-  id            Int                 @id @default(autoincrement())
-  nombre        String              @unique
+  id            Int            @id @default(autoincrement())
+  nombre        String         @unique
   medidas       String
   configuracion Configuracion?
-  historicos    ConfiguracionHist[]
+  //historicos    ConfiguracionHist[]
   Reserva       Reserva[]
 
   @@index([nombre])
@@ -68,42 +66,42 @@ model Configuracion {
 }
 
 model Usuario {
-  id            Int                 @id @default(autoincrement())
-  user          String              @unique
-  password      String
-  nombre        String
-  apellido      String
-  celular       String
-  email         String?             @unique
-  tipo_usuario  String
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  cambiosConfig ConfiguracionHist[] // (opcional) ver quién hizo el cambio
-  Reserva       Reserva[]
-  ReservaHist   ReservaHist[]
+  id           Int           @id @default(autoincrement())
+  user         String        @unique
+  password     String
+  nombre       String
+  apellido     String
+  celular      String
+  email        String?       @unique
+  tipo_usuario String
+  estado       String        @default("activo")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  Reserva      Reserva[]
+  ReservaHist  ReservaHist[]
 
   @@index([apellido, nombre])
   @@index([user])
 }
 
-model ConfiguracionHist {
-  id       Int    @id @default(autoincrement())
-  canchaId Int
-  cancha   Cancha @relation(fields: [canchaId], references: [id])
+model UsuarioHist {
+  id           Int      @id @default(autoincrement())
+  usuarioId    Int // id del usuario “objetivo” (al que se le hace el cambio)
+  version      Int
+  accion       String // CREAR | ACTUALIZAR | INACTIVAR
+  actorId      Int? // id del usuario que hizo el cambio (req.uid), si aplica
+  
+  user         String? // nombre del actor (req.userName), si aplica
+  userLogin    String
+  nombre       String
+  apellido     String
+  celular      String?
+  email        String?
+  tipo_usuario String
+  estado       String
+  changedAt    DateTime @default(now())
 
-  // Datos en esa versión:
-  monto_cancha Decimal @db.Decimal(12, 2)
-  monto_sena   Decimal @db.Decimal(12, 2)
-
-  version     Int
-  changedById Int? // quién hizo el cambio (opcional)
-  changedBy   Usuario? @relation(fields: [changedById], references: [id])
-
-  valid_from DateTime  @default(now()) // cuándo empezó a regir
-  valid_to   DateTime? // cuándo dejó de regir (null = vigente si usás solo histórico)
-
-  @@unique([canchaId, version]) // una versión por número
-  @@index([canchaId, valid_from])
+  @@index([usuarioId, changedAt])
 }
 
 model Reserva {

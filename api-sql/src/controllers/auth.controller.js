@@ -1,26 +1,43 @@
 const bcrypt = require('bcryptjs');
 const { prisma } = require('../db');
 const { generarJWT } = require('../helpers/jwt');
+// helper: convierte ''/undefined -> null (para no pisar con cadenas vacías)
+const toNull = (v) => (v === '' || v === undefined ? null : v);
+
+
 
 let tipoUsuario;
 
-//----------------------------LOGIN-----------------------------
+//================================LOGIN====================================
 const loginUsuario = async (req, res) => {
-  const { user, password } = req.body;
+  const user = (req.body.user || '').trim();
+  const password = req.body.password || '';
 
   try {
+    if (!user || password.length < 6) {
+      return res.status(400).json({ ok: false, msg: 'Credenciales inválidas' });
+    }
+
+    // 1) Buscar por user (es UNIQUE)
     const usuario = await prisma.usuario.findUnique({ where: { user } });
+
+    // 2) No existe o está inactivo -> no permitir login
     if (!usuario) {
       return res.status(400).json({ ok: false, msg: 'Usuario no encontrado' });
     }
-     tipoUsuario = usuario.tipo_usuario;
+    if (usuario.estado !== 'activo') {
+      return res.status(403).json({ ok: false, msg: 'Usuario inactivo. Contacte al administrador.' });
+    }
 
+    // 3) Validar password
     const okPass = bcrypt.compareSync(password, usuario.password);
-    if (!okPass || (password?.length || 0) < 6) {
+    if (!okPass) {
       return res.status(400).json({ ok: false, msg: 'Password incorrecto' });
     }
 
+    // 4) Generar token
     const token = await generarJWT(usuario.id, usuario.user);
+
     return res.json({
       ok: true,
       msg: 'Accedo a calendario',
@@ -35,9 +52,10 @@ const loginUsuario = async (req, res) => {
     });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Por consulte al administrador' });
+    return res.status(500).json({ ok: false, msg: 'Por favor, consulte al administrador' });
   }
 };
+
 //----------------------------RENEW-----------------------------
 const revalidartoken = async (req, res) => {
   const { id, user } = req; // seteado por validar-jwt
@@ -60,11 +78,20 @@ const revalidartoken = async (req, res) => {
     return res.status(500).json({ ok: false, msg: 'Error al revalidar el token. Hable con el administrador.' });
   }
 };
-//----------------------------CREAR-----------------------------
+//=====================================CREAR===========================================
 const crearUsuario = async (req, res) => {
   const { nombre, apellido, celular, email, password, user, tipo_usuario } = req.body;
 
   try {
+
+    // Validaciones básicas
+    if (!user || !password || !nombre || !apellido || !tipo_usuario) {
+      return res.status(400).json({ ok: false, msg: 'user, password, nombre, apellido y tipo_usuario son obligatorios' });
+    }
+    if ((password?.length || 0) < 6) {
+      return res.status(400).json({ ok: false, msg: 'El password debe tener al menos 6 caracteres' });
+    }
+
     const existente = await prisma.usuario.findUnique({ where: { user } });
     if (existente) {
       return res.status(400).json({
@@ -85,20 +112,55 @@ const crearUsuario = async (req, res) => {
        });
     }
 
+    // Hash de password
     const salt = bcrypt.genSaltSync();
     const passwordHash = bcrypt.hashSync(password, salt);
 
-    const usuario = await prisma.usuario.create({
-      data: { nombre, apellido, celular, email: email || null, user, password: passwordHash, tipo_usuario },
+    const actorId  = req.uid ?? null;       // quien hace el alta (si hay JWT)
+    const actorStr = req.userName ?? null;  // nombre del actor (opcional)
+
+    let nuevo;
+    await prisma.$transaction(async (tx) => {
+      // 1) crear Usuario (estado activo por defecto)
+      nuevo = await tx.usuario.create({
+        data: {
+          user,
+          password: passwordHash,
+          nombre,
+          apellido,
+          celular: celular || null,
+          email:   email   || null,
+          tipo_usuario,
+          estado: 'activo',
+        },
+      });
+
+      // 2) snapshot histórico (versión 1)
+      await tx.usuarioHist.create({
+        data: {
+          usuarioId:    nuevo.id,    // target
+          version:      1,
+          accion:       'CREAR',
+          actorId:      actorId ? Number(actorId) : null,
+          user:         actorStr,
+          userLogin:    nuevo.user,  // snapshot del username del usuario creado
+          nombre:       nuevo.nombre,
+          apellido:     nuevo.apellido,
+          celular:      nuevo.celular,
+          email:        nuevo.email,
+          tipo_usuario: nuevo.tipo_usuario,
+          estado:       nuevo.estado, // 'activo'
+        },
+      });
     });
 
-    const token = await generarJWT(usuario.id, usuario.user);
+    const token = await generarJWT(nuevo.id, nuevo.user);
 
     return res.status(201).json({
       ok: true,
       msg: 'Usuario creado',
-      name: usuario.nombre,
-      email: usuario.email,
+      name: nuevo.nombre,
+      email: nuevo.email,
       token,
     });
   } catch (e) {
@@ -107,7 +169,7 @@ const crearUsuario = async (req, res) => {
     return res.status(500).json({ ok: false, msg: 'por favor hable con el administrador' });
   }
 };
-//----------------------------BUSCAR_USUARIO-----------------------------
+//======================================BUSCAR_USUARIO============================================
 const buscarUsuarios = async (req, res) => {
   const { termino } = req.params;
   const page = Math.max(parseInt(req.query.page || '1', 10), 1);
@@ -115,16 +177,24 @@ const buscarUsuarios = async (req, res) => {
   const skip = (page - 1) * limit;
 
   try {
-    const q = termino?.trim();
+    const q = termino?.trim().toLowerCase();
+    // siempre filtramos por activos
+    const baseWhere = { estado: 'activo' };
+
     const where = q
       ? {
+        AND:[
+          baseWhere,
+          {
           OR: [
             { nombre:   { contains: q, mode: 'insensitive' } },
             { apellido: { contains: q, mode: 'insensitive' } },
             { user:     { contains: q, mode: 'insensitive' } },
           ],
+        },
+      ]
         }
-      : {};
+      : baseWhere;
 
     const [usuarios, total] = await Promise.all([
       prisma.usuario.findMany({ where, skip, take: limit, orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }] }),
@@ -168,72 +238,179 @@ const getUsuarioPorUser = async (req, res) => {
     res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 };
-//----------------------------ACTUALIZAR-----------------------------
-const actualizarUsuario = async (req, res) => {
-  const { id } = req.params;
-
+//==============================ACTUALIZAR===========================================
+async function actualizarUsuario(req, res) {
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { id: Number(id) } });
-    if (!usuario) return res.status(404).json({ ok: false, msg: 'Usuario no encontrado' });
+    const id = Number(req.params.id);
+    const {
+      user,          // NO permitimos cambiarlo
+      password,      // opcional
+      nombre,
+      apellido,
+      celular,
+      email,
+      tipo_usuario,  // opcional
+      estado         // opcional (si no querés permitirlo, quita esta línea del update)
+    } = req.body || {};
 
-    const campos = { ...req.body };
+    const usuario = await prisma.usuario.findUnique({ where: { id } });
+    if (!usuario) {
+      return res.status(404).json({ ok: false, msg: 'Usuario no encontrado' });
+    }
 
-    // Si viene password nueva, encriptar
-    if (campos.password) {
+    // bloquear cambio de user
+    if (user && user !== usuario.user) {
+      return res.status(400).json({
+        ok: false,
+        msg: 'Cambio de "user" deshabilitado. Cree un usuario nuevo.',
+      });
+    }
+
+    // validar email si cambia
+    if (email && email !== usuario.email) {
+      const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!regexEmail.test(email)) {
+        return res.status(400).json({ ok: false, msg: 'Email inválido' });
+      }
+      const emailTomado = await prisma.usuario.findFirst({
+        where: { email, NOT: { id } },
+        select: { id: true },
+      });
+      if (emailTomado) {
+        return res.status(400).json({ ok: false, msg: 'El email ya está registrado por otro usuario' });
+      }
+    }
+
+    // password opcional
+    let passwordHash;
+    if (password !== undefined) {
+      if ((password?.length || 0) < 6) {
+        return res.status(400).json({ ok: false, msg: 'El password debe tener al menos 6 caracteres' });
+      }
       const salt = bcrypt.genSaltSync();
-      campos.password = bcrypt.hashSync(campos.password, salt);
+      passwordHash = bcrypt.hashSync(password, salt);
     }
 
-    // Validar user duplicado (si cambia)
-    if (campos.user && campos.user !== usuario.user) {
-      const existUser = await prisma.usuario.findUnique({ where: { user: campos.user } });
-      if (existUser && existUser.id !== usuario.id) {
-        return res.status(400).json({ ok: false, msg: 'El nombre de usuario ya está registrado por otro usuario',
-            nombre:existUser.nombre,
-            apellido:existUser.apellido });
-      }
-    }
+    const actorId  = req.uid ?? null;
+    const actorStr = req.userName ?? null;
 
-    // Validar email duplicado (si cambia)
-    if (campos.email && campos.email !== usuario.email) {
-      const existEmail = await prisma.usuario.findFirst({ where: { email: campos.email } });
-      if (existEmail && existEmail.id !== usuario.id) {
-        return res.status(400).json({ ok: false, msg: 'El email ya está registrado por otro usuario',
-            nombre:existEmail.nombre,
-            apellido:existEmail.apellido 
-         });
-      }
-    }
+    let actualizado;
 
-    const usuarioActualizado = await prisma.usuario.update({
-      where: { id: usuario.id },
-      data: {
-        user:         campos.user         ?? undefined,
-        nombre:       campos.nombre       ?? undefined,
-        apellido:     campos.apellido     ?? undefined,
-        celular:      campos.celular      ?? undefined,
-        email:        campos.email        ?? undefined,
-        tipo_usuario: campos.tipo_usuario ?? undefined,
-        password:     campos.password     ?? undefined,
+    await prisma.$transaction(async (tx) => {
+      // UPDATE
+      actualizado = await tx.usuario.update({
+        where: { id },
+        data: {
+          // user: no se toca
+          password: passwordHash ?? undefined,
+          nombre:   nombre       ?? undefined,
+          apellido: apellido     ?? undefined,
+          celular:  toNull(celular) ?? undefined,
+          email:    toNull(email)   ?? undefined,
+          tipo_usuario: tipo_usuario ?? undefined,
+          estado:   estado       ?? undefined, // quita si NO querés permitir cambiar estado aquí
+        },
+      });
+
+      // versión siguiente
+      const prev = await tx.usuarioHist.count({ where: { usuarioId: id } });
+      const nextVersion = prev + 1;
+
+      // snapshot histórico
+      await tx.usuarioHist.create({
+        data: {
+          usuarioId:    id,
+          version:      nextVersion,
+          accion:       'ACTUALIZAR',
+          actorId:      actorId ? Number(actorId) : null,
+          user:         actorStr,              // actor (string)
+          userLogin:    actualizado.user,      // username del usuario actualizado
+          nombre:       actualizado.nombre,
+          apellido:     actualizado.apellido,
+          celular:      actualizado.celular,
+          email:        actualizado.email,
+          tipo_usuario: actualizado.tipo_usuario,
+          estado:       actualizado.estado,
+          // changedAt lo setea @default(now())
+        },
+      });
+    }); // ← cierra la transacción
+
+    return res.json({
+      ok: true,
+      msg: 'Usuario actualizado correctamente',
+      usuario: {
+        id: actualizado.id,
+        user: actualizado.user,
+        nombre: actualizado.nombre,
+        apellido: actualizado.apellido,
+        celular: actualizado.celular,
+        email: actualizado.email,
+        tipo_usuario: actualizado.tipo_usuario,
+        estado: actualizado.estado,
+        createdAt: actualizado.createdAt,
+        updatedAt: actualizado.updatedAt,
       },
     });
-
-    return res.json({ ok: true, usuario: usuarioActualizado, msg: 'Usuario actualizado correctamente' });
   } catch (e) {
-    if (e.code === 'P2002') return res.status(400).json({ ok: false, msg: 'Usuario o email ya registrados' });
+    if (e.code === 'P2002') {
+      return res.status(400).json({ ok: false, msg: 'Usuario o email duplicado' });
+    }
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Error al actualizar. Hable con el administrador.' });
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
-};
-//----------------------------ELIMINAR-----------------------------
+}
+//============================================ELIMINAR=================================
 const eliminarUsuario = async (req, res) => {
-  const usuarioId = Number(req.params.id);
+  const id = Number(req.params.id);
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+    // (opcional) evitar que un usuario se desactive a sí mismo
+    if (req.uid && Number(req.uid) === id) {
+      return res.status(400).json({ ok: false, msg: 'No podés inactivar tu propio usuario.' });
+    }
+    
+    const usuario = await prisma.usuario.findUnique({ where: { id: id } });
     if (!usuario) return res.status(404).json({ ok: false, msg: 'Usuario inexistente' });
+    
+    // si ya estaba inactivo, devolvemos OK (no rompemos el front)
+    if (usuario.estado === 'inactivo') {
+      return res.json({ ok: true, msg: 'Usuario inactivado' });
+    }
 
-    await prisma.usuario.delete({ where: { id: usuarioId } });
-    res.json({ ok: true, msg: 'Usuario Eliminado' });
+    const actorId  = req.uid ?? null;      // quién ejecuta la acción (JWT)
+    const actorStr = req.userName ?? null; // nombre del actor (si lo guardás)
+
+        await prisma.$transaction(async (tx) => {
+      // 1) marcar inactivo
+      const inactivado = await tx.usuario.update({
+        where: { id },
+        data: { estado: 'inactivo' },
+      });
+
+      // 2) siguiente versión del histórico
+      const nextVersion = (await tx.usuarioHist.count({ where: { usuarioId: id } })) + 1;
+
+      // 3) snapshot en histórico
+      await tx.usuarioHist.create({
+        data: {
+          usuarioId:    id,
+          version:      nextVersion,
+          accion:       'INACTIVAR',
+          actorId:      actorId ? Number(actorId) : null,
+          user:         actorStr,            // actor (string)
+          userLogin:    inactivado.user,     // snapshot del username del usuario inactivado
+          nombre:       inactivado.nombre,
+          apellido:     inactivado.apellido,
+          celular:      inactivado.celular,
+          email:        inactivado.email,
+          tipo_usuario: inactivado.tipo_usuario,
+          estado:       inactivado.estado,   // 'inactivo'
+          // changedAt lo setea @default(now())
+        },
+      });
+    });
+
+    return res.json({ ok: true, msg: 'Usuario eliminado' });
   } catch (e) {
     console.error(e);
     res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
