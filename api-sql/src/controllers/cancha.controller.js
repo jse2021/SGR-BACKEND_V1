@@ -1,46 +1,113 @@
 const { prisma } = require('../db');
 
 const trim = (s) => (typeof s === 'string' ? s.trim() : s);
+const toNull = (v) => (v === '' || v === undefined ? null : v);
 
-
-//----------------------------------------------------------Crear_Cancha-------------------------------------------------
+//================================================Crear_Cancha======================================
 async function crearCancha(req, res) {
   try {
-    const nombre  = trim(req.body?.nombre);
-    const medidas = trim(req.body?.medidas || '');
-
-    if (!nombre) {
-      return res.status(400).json({ ok: false, msg: 'El nombre es obligatorio' });
+    const { nombre, medidas } = req.body || {};
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ ok: false, msg: 'El Nombre de la cancha es obligatorio' });
     }
 
-    // ¿ya existe por nombre?
-    const existente = await prisma.cancha.findFirst({ where: { nombre } });
-    if (existente) {
-      return res.status(400).json({
-        ok: false,
-        msg: 'La cancha existe en la base de datos',
-        nombre: existente, 
-        nombre: nombre
+    const yaExiste = await prisma.cancha.findUnique({ where: { nombre } });
+    if (yaExiste) {
+      return res.status(400).json({ ok: false, msg: 'Ya existe una cancha con ese Nombre' });
+    }
+
+    const actorId  = req.uid ?? null;
+    const actorStr = req.userName ?? null;
+
+    let nueva;
+    await prisma.$transaction(async (tx) => {
+      nueva = await tx.cancha.create({
+        data: {
+          nombre: nombre.trim(),
+          medidas: toNull(medidas),
+          estado: 'activo',
+        },
       });
-    }
 
-    await prisma.cancha.create({ data: { nombre, medidas } });
-
-    return res.status(201).json({
-      ok: false, 
-      msg: 'Cancha registrada exitosamente',
-      nombre, medidas
+      // Histórico versión 1 (CREAR)
+      await tx.canchaHist.create({
+        data: {
+          canchaId:  nueva.id,
+          version:   1,
+          accion:    'CREAR',
+          usuarioId: actorId ? Number(actorId) : null,
+          user:      actorStr,
+          nombre:    nueva.nombre,
+          medidas:   nueva.medidas,
+          estado:    nueva.estado,
+        },
+      });
     });
-  } catch (error) {
-    console.error(error);
-    // por si choca unique (nombre)
-    if (error.code === 'P2002') {
-      return res.status(400).json({ ok: false, msg: 'La cancha existe en la base de datos' });
-    }
+
+    return res.status(201).json({ ok: true, msg: 'Cancha creada', cancha: nueva });
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(400).json({ ok: false, msg: 'Nombre de cancha duplicado' });
+    console.error(e);
     return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 }
-//----------------------------------------------------------Buscar_Cancha-------------------------------------------------
+
+//----------------------------------------------------------Actualizar_Cancha-------------------------------------------------
+// PUT /canchas/:id
+async function actualizarCancha(req, res) {
+  try {
+    const id = Number(req.params.id);
+    const { nombre, medidas, estado } = req.body || {};
+
+    const cancha = await prisma.cancha.findUnique({ where: { id } });
+    if (!cancha) return res.status(404).json({ ok: false, msg: 'Cancha inexistente' });
+
+    if (nombre && nombre !== cancha.nombre) {
+      const ocupa = await prisma.cancha.findUnique({ where: { nombre } });
+      if (ocupa && ocupa.id !== id) {
+        return res.status(400).json({ ok: false, msg: 'Ya existe otra cancha con ese Nombre' });
+      }
+    }
+
+    const actorId  = req.uid ?? null;
+    const actorStr = req.userName ?? null;
+
+    let actualizada;
+    await prisma.$transaction(async (tx) => {
+      actualizada = await tx.cancha.update({
+        where: { id },
+        data: {
+          nombre:  nombre  ?? undefined,
+          medidas: toNull(medidas) ?? undefined,
+          estado:  estado  ?? undefined, // si no querés permitirlo, quitá esta línea
+        },
+      });
+
+      const prev = await tx.canchaHist.count({ where: { canchaId: id } });
+      const nextVersion = prev + 1;
+
+      await tx.canchaHist.create({
+        data: {
+          canchaId:  id,
+          version:   nextVersion,
+          accion:    'ACTUALIZAR',
+          usuarioId: actorId ? Number(actorId) : null,
+          user:      actorStr,
+          nombre:    actualizada.nombre,
+          medidas:   actualizada.medidas,
+          estado:    actualizada.estado,
+        },
+      });
+    });
+
+    return res.json({ ok: true, msg: 'Cancha actualizada', cancha: actualizada });
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(400).json({ ok: false, msg: 'Nombre de cancha duplicado' });
+    console.error(e);
+    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+  }
+}
+//====================================================Buscar_Cancha====================================================
 // GET /canchas/buscar/:termino?page=&limit=
 async function buscarCancha(req, res) {
   const termino = (req.params.termino || '').trim();
@@ -49,14 +116,21 @@ async function buscarCancha(req, res) {
   const skip  = (page - 1) * limit;
 
   try {
-    const where = termino
+     // siempre filtramos por activos
+    const baseWhere = { estado: 'activo' };
+    const where = termino.toLowerCase()
       ? {
+        AND: [
+            baseWhere,
+            {
           OR: [
             { nombre:  { contains: termino, mode: 'insensitive' } },
             { medidas: { contains: termino, mode: 'insensitive' } },
+             ],
+             }
           ],
         }
-      : {};
+            : baseWhere;
 
     const [canchas, total] = await Promise.all([
       prisma.cancha.findMany({
@@ -79,62 +153,65 @@ async function buscarCancha(req, res) {
     return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 }
-//----------------------------------------------------------Actualizar_Cancha-------------------------------------------------
-// PUT /canchas/:id
-async function actualizarCancha(req, res) {
-  const { id } = req.params;
-  try {
-    const cancha = await prisma.cancha.findUnique({ where: { id: Number(id) } });
-    if (!cancha) {
-      return res.status(404).json({ ok: false, msg: 'Cancha no encontrado' });
-    }
-
-    const data = {};
-    if (typeof req.body?.nombre === 'string')  data.nombre  = req.body.nombre.trim();
-    if (typeof req.body?.medidas === 'string') data.medidas = req.body.medidas.trim();
-
-   
-    const canchaActualizada = await prisma.cancha.update({
-      where: { id: Number(id) },
-      data
-    });
-
-    return res.json({
-      ok: true,
-      usuario: canchaActualizada, 
-      msg: 'Cancha actualizada correctamente',
-    });
-  } catch (error) {
-    if (error.code === 'P2002') {
-      return res.status(400).json({ ok: false, msg: 'La cancha existe en la base de datos' });
-    }
-    console.error(error);
-    return res.status(500).json({ ok: false, msg: 'Error al actualizar. Hable con el administrador.' });
-  }
-}
-//----------------------------------------------------------Eliminar_Cancha-------------------------------------------------
-// DELETE /canchas/:id
-/*
-*FALTA IMPLEMENTAR LA ACTUALIZCION, NO ELIMINAR. aGREGAR CAMPO ESTADO
-*/
+//====================================================Eliminar_Cancha===================================================
+// DELETE /cancha/:id  (soft delete + histórico INACTIVAR)
 async function eliminarCancha(req, res) {
-  const canchaId = Number(req.params.id);
   try {
-    const cancha = await prisma.cancha.findUnique({ where: { id: canchaId } });
+    const id = Number(req.params.id);
+
+    const cancha = await prisma.cancha.findUnique({ where: { id } });
     if (!cancha) {
       return res.status(404).json({ ok: false, msg: 'Cancha inexistente' });
     }
 
-    // Si más adelante agregamos tabla Configuracion, acá podrías borrar lo relacionado.
-    // En este SQL nuevo no la tenemos, así que sólo eliminamos la cancha.
-    await prisma.cancha.delete({ where: { id: canchaId } });
+    // (Opcional) bloquear si tiene reservas activas
+    const activas = await prisma.reserva.count({
+      where: { canchaId: id, estado: 'activo' }
+    });
+    if (activas > 0) {
+      return res.status(400).json({ ok: false, msg: 'No se puede eliminar: hay reservas activas' });
+    }
 
-    return res.json({ ok: true, msg: `la cancha ${cancha.nombre} fue eliminada` });
-  } catch (error) {
-    console.error(error);
+    // Si ya estaba inactiva, no duplicamos histórico
+    if (cancha.estado === 'inactivo') {
+      return res.json({ ok: true, msg: 'Cancha ya estaba inactiva' });
+    }
+
+    const actorId  = req.uid ?? null;      // quien ejecuta (JWT)
+    const actorStr = req.userName ?? null; // nombre del actor (si lo guardás)
+
+    await prisma.$transaction(async (tx) => {
+      // 1) Marcar inactiva
+      const inact = await tx.cancha.update({
+        where: { id },
+        data: { estado: 'inactivo' },
+      });
+
+      // 2) Próxima versión del histórico
+      const nextVersion = (await tx.canchaHist.count({ where: { canchaId: id } })) + 1;
+
+      // 3) Snapshot en histórico
+      await tx.canchaHist.create({
+        data: {
+          canchaId:  id,
+          version:   nextVersion,
+          accion:    'INACTIVAR',
+          usuarioId: actorId ? Number(actorId) : null,
+          user:      actorStr,
+          nombre:    inact.nombre,
+          medidas:   inact.medidas,
+          estado:    inact.estado, // 'inactivo'
+        },
+      });
+    });
+
+    return res.json({ ok: true, msg: 'Cancha eliminada' });
+  } catch (e) {
+    console.error(e);
     return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
   }
 }
+
 //----------------------------------------------------------BUSCAR_TODAS_LAS_CANCHAS-------------------------------------------------
 // GET /canchas
 async function getCancha(_req, res) {

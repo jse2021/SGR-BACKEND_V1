@@ -42,12 +42,36 @@ model Cancha {
   id            Int            @id @default(autoincrement())
   nombre        String         @unique
   medidas       String
+  estado        String         @default("activo")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now()) @updatedAt
   configuracion Configuracion?
-  //historicos    ConfiguracionHist[]
+  historicos    CanchaHist[]
   Reserva       Reserva[]
+
+  //Lado opuesto de la relación con ConfiguracionHist (nuevo)
+  configHistoricos ConfiguracionHist[] @relation("Cancha_ConfigHist")
 
   @@index([nombre])
   @@index([medidas])
+}
+
+model CanchaHist {
+  id        Int      @id @default(autoincrement())
+  canchaId  Int
+  version   Int
+  accion    String // CREAR | ACTUALIZAR | INACTIVAR
+  usuarioId Int?
+  user      String? // nombre del actor (req.userName)
+  // snapshot
+  nombre    String
+  medidas   String?
+  estado    String
+  changedAt DateTime @default(now())
+
+  cancha Cancha @relation(fields: [canchaId], references: [id])
+
+  @@index([canchaId, changedAt])
 }
 
 model Configuracion {
@@ -61,8 +85,31 @@ model Configuracion {
   monto_cancha Decimal @db.Decimal(12, 2)
   monto_sena   Decimal @db.Decimal(12, 2)
 
+  // Lado opuesto de la relación con ConfiguracionHist (nuevo nombre explícito)
+  historicos ConfiguracionHist[] @relation("Config_ConfigHist")
+
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model ConfiguracionHist {
+  id              Int      @id @default(autoincrement())
+  configuracionId Int
+  canchaId        Int
+  version         Int
+  accion          String // CREAR | ACTUALIZAR
+  usuarioId       Int?
+  user            String?
+  monto_cancha    Decimal  @db.Decimal(12, 2)
+  monto_sena      Decimal  @db.Decimal(12, 2)
+  changedAt       DateTime @default(now())
+
+  //Nombres de relación explícitos en AMBOS lados
+  configuracion Configuracion @relation("Config_ConfigHist", fields: [configuracionId], references: [id])
+  cancha        Cancha        @relation("Cancha_ConfigHist", fields: [canchaId], references: [id])
+
+  @@index([configuracionId, changedAt])
+  @@index([canchaId, changedAt])
 }
 
 model Usuario {
@@ -85,12 +132,12 @@ model Usuario {
 }
 
 model UsuarioHist {
-  id           Int      @id @default(autoincrement())
-  usuarioId    Int // id del usuario “objetivo” (al que se le hace el cambio)
-  version      Int
-  accion       String // CREAR | ACTUALIZAR | INACTIVAR
-  actorId      Int? // id del usuario que hizo el cambio (req.uid), si aplica
-  
+  id        Int    @id @default(autoincrement())
+  usuarioId Int // id del usuario “objetivo” (al que se le hace el cambio)
+  version   Int
+  accion    String // CREAR | ACTUALIZAR | INACTIVAR
+  actorId   Int? // id del usuario que hizo el cambio (req.uid), si aplica
+
   user         String? // nombre del actor (req.userName), si aplica
   userLogin    String
   nombre       String
