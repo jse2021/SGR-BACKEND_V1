@@ -1,18 +1,26 @@
-const { prisma } = require('../db');
-const { contarReservasCliente } = require('../helpers/contarReservasCliente');
+const { prisma } = require("../db");
+const { contarReservasCliente } = require("../helpers/contarReservasCliente");
 
+// Normalizadores
+const toStr = (v) => (v === null || v === undefined ? null : String(v).trim());
+const toLower = (v) => {
+  const s = toStr(v);
+  return s ? s.toLowerCase() : null;
+};
 
-
-// Normaliza strings (trim y email en minúsculas)
-const trim = (s) => (typeof s === 'string' ? s.trim() : s);
-const norm = (obj) => obj && ({
-  ...obj,
-  dni: trim(obj.dni),
-  nombre: trim(obj.nombre),
-  apellido: trim(obj.apellido),
-  telefono: trim(obj.telefono),
-  email: trim(obj.email)?.toLowerCase(),
-});
+// Unifica telefono/celular
+const norm = (obj = {}) => {
+  const telRaw = obj.telefono ?? obj.celular ?? null;
+  const telStr = toStr(telRaw);
+  return {
+    ...obj,
+    dni: toStr(obj.dni),
+    nombre: toStr(obj.nombre),
+    apellido: toStr(obj.apellido),
+    telefono: telStr === "" ? null : telStr,
+    email: toLower(obj.email),
+  };
+};
 
 ///===============================================CREAR_CLIENTE===================================================
 async function crearCliente(req, res) {
@@ -20,48 +28,71 @@ async function crearCliente(req, res) {
     const data = norm(req.body);
     const { dni, nombre, apellido, telefono, email } = data || {};
 
-   if (!dni || !nombre || !apellido) {
-      return res.status(400).json({ ok: false, msg: 'dni, nombre y apellido son obligatorios' });
+    if (!dni || !nombre || !apellido) {
+      return res
+        .status(400)
+        .json({ ok: false, msg: "dni, nombre y apellido son obligatorios" });
     }
     if (!/^\d+$/.test(dni)) {
-      return res.status(400).json({ ok: false, msg: 'DNI debe ser numérico' });
+      return res.status(400).json({ ok: false, msg: "DNI debe ser numérico" });
     }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ ok: false, msg: 'Email inválido' });
+      return res.status(400).json({ ok: false, msg: "Email inválido" });
     }
 
     // duplicados ->dni ->email
-    const dupDni = await prisma.cliente.findFirst({ where: { dni }, select: { id: true, nombre: true, apellido: true, dni: true } });
+    const dupDni = await prisma.cliente.findFirst({
+      where: { dni, estado: "activo" },
+      select: { id: true, nombre: true, apellido: true, dni: true },
+    });
     if (dupDni) {
       return res.status(400).json({
         ok: false,
-        msg: 'Dni ingresado esta asociado a otro cliente',
-        dni: dupDni.dni, nombre: dupDni.nombre, apellido: dupDni.apellido,
+        msg: "Dni ingresado esta asociado a otro cliente",
+        dni: dupDni.dni,
+        nombre: dupDni.nombre,
+        apellido: dupDni.apellido,
       });
     }
     if (email) {
-      const dupEmail = await prisma.cliente.findFirst({ where: { email }, select: { email: true, nombre: true, apellido: true } });
+      const dupEmail = await prisma.cliente.findFirst({
+        where: { email, estado: "activo" },
+        select: { email: true, nombre: true, apellido: true },
+      });
       if (dupEmail) {
         return res.status(400).json({
           ok: false,
-          msg: 'Email ingresado esta asociado a otro cliente',
-          nombre: dupEmail.nombre, apellido: dupEmail.apellido, email: dupEmail.email,
+          msg: "Email ingresado esta asociado a otro cliente",
+          nombre: dupEmail.nombre,
+          apellido: dupEmail.apellido,
+          email: dupEmail.email,
         });
       }
     }
+    // Validar teléfono ya normalizado (string o null)
+    if (telefono && !/^\+?\d{6,15}$/.test(telefono)) {
+      return res.status(400).json({
+        ok: false,
+        msg: "Teléfono inválido (use solo dígitos y opcional +)",
+      });
+    }
 
-const uid = req.uid ?? null;              // id del usuario autenticado (para usuarioId)
-    const userName = req.userName ?? null;    // string del usuario si lo guardás (para user)
+    const uid = req.uid ?? null; // id del usuario autenticado (para usuarioId)
+    const userName = req.userName ?? null; // string del usuario si lo guardás (para user)
+    console.log("req.body:", req.body);
+    console.log("normalizado.telefono:", telefono);
 
     let creado;
     await prisma.$transaction(async (tx) => {
       // 1) Cliente
       creado = await tx.cliente.create({
         data: {
-          dni, nombre, apellido,
-          telefono: telefono || null,
+          dni,
+          nombre,
+          apellido,
+          telefono: telefono ?? null,
           email: email || null,
-          estado: 'activo',
+          estado: "activo",
         },
       });
 
@@ -70,9 +101,9 @@ const uid = req.uid ?? null;              // id del usuario autenticado (para us
         data: {
           clienteId: creado.id,
           version: 1,
-          accion: 'CREAR',
+          accion: "CREAR",
           usuarioId: uid ? Number(uid) : null,
-          user: userName,                 // << usa 'user' (no user2)
+          user: userName, // << usa 'user' (no user2)
           dni: creado.dni,
           nombre: creado.nombre,
           apellido: creado.apellido,
@@ -83,26 +114,38 @@ const uid = req.uid ?? null;              // id del usuario autenticado (para us
       });
     });
 
-    return res.status(201).json({ ok: true, msg: 'Cliente registrado exitosamente', cliente: creado });
+    return res.status(201).json({
+      ok: true,
+      msg: "Cliente registrado exitosamente",
+      cliente: creado,
+    });
   } catch (e) {
-    if (e.code === 'P2002') return res.status(400).json({ ok: false, msg: 'DNI o Email ya registrados' });
+    if (e.code === "P2002")
+      return res
+        .status(400)
+        .json({ ok: false, msg: "DNI o Email ya registrados" });
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    return res
+      .status(500)
+      .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
 
 // ===================================== BUSCAR==========================================================
 
 async function buscarCliente(req, res) {
-  const termino = (req.params.termino || '').trim();
-  const page = Math.max(parseInt(req.query.page || '1', 10), 1);
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '5', 10), 1), 100);
+  const termino = (req.params.termino || "").trim();
+  const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+  const limit = Math.min(
+    Math.max(parseInt(req.query.limit || "5", 10), 1),
+    100
+  );
   const skip = (page - 1) * limit;
 
   try {
     const q = termino.toLowerCase();
     // siempre filtramos por activos
-    const baseWhere = { estado: 'activo' };
+    const baseWhere = { estado: "activo" };
 
     // si hay término, sumamos el OR de nombre/apellido/dni
     const where = termino
@@ -111,9 +154,9 @@ async function buscarCliente(req, res) {
             baseWhere,
             {
               OR: [
-                { nombre:   { contains: q, mode: 'insensitive' } },
-                { apellido: { contains: q, mode: 'insensitive' } },
-                { dni:      { contains: termino } }, // dni como string
+                { nombre: { contains: q, mode: "insensitive" } },
+                { apellido: { contains: q, mode: "insensitive" } },
+                { dni: { contains: termino } }, // dni como string
               ],
             },
           ],
@@ -123,50 +166,61 @@ async function buscarCliente(req, res) {
     const [clientes, total] = await Promise.all([
       prisma.cliente.findMany({
         where,
-        skip, take: limit,
-        orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
+        skip,
+        take: limit,
+        orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
       }),
       prisma.cliente.count({ where }),
     ]);
 
     return res.json({
       ok: true,
-      
+
       clientes,
       total,
       totalPages: Math.ceil(total / limit),
       currentPage: page,
-      msg: 'Clientes encontrados',
+      msg: "Clientes encontrados",
     });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    return res
+      .status(500)
+      .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
 // ================================ GET TODOS =======================================================
 async function getCliente(_req, res) {
   try {
     const clientes = await prisma.cliente.findMany({
-      orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
+      orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
     });
-    return res.json({ ok: true, clientes, msg: 'Traigo todos los clientes' });
+    return res.json({ ok: true, clientes, msg: "Traigo todos los clientes" });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    return res
+      .status(500)
+      .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
 // ===================================== GET POR APELLIDO =========================================
 async function getClientePorApellido(req, res) {
   const { apellido } = req.params;
   try {
-    const cliente = await prisma.cliente.findMany({ where: { apellido }  });
+    const cliente = await prisma.cliente.findMany({ where: { apellido } });
     if (!cliente || cliente.length === 0) {
-      return res.status(400).json({ ok: false, msg: 'El cliente no existe en la base de datos' });
+      return res
+        .status(400)
+        .json({ ok: false, msg: "El cliente no existe en la base de datos" });
     }
-    return res.status(200).json({ ok: true, cliente, msg: 'Traigo todos los clientes' });
+    return res
+      .status(200)
+      .json({ ok: true, cliente, msg: "Traigo todos los clientes" });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    return res
+      .status(500)
+      .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
 // ================================= ACTUALIZAR ===================================================
@@ -179,14 +233,14 @@ async function actualizarCliente(req, res) {
     // 1) Existe el cliente
     const cliente = await prisma.cliente.findUnique({ where: { id } });
     if (!cliente) {
-      return res.status(404).json({ ok: false, msg: 'Cliente no encontrado' });
+      return res.status(404).json({ ok: false, msg: "Cliente no encontrado" });
     }
 
     // 2) No permitimos cambiar DNI
     if (dni && dni !== cliente.dni) {
       return res.status(400).json({
         ok: false,
-        msg: 'Cambio de DNI deshabilitado para evitar inconsistencias con reservas. Cree un cliente nuevo.',
+        msg: "Cambio de DNI deshabilitado para evitar inconsistencias con reservas. Cree un cliente nuevo.",
       });
     }
 
@@ -194,22 +248,25 @@ async function actualizarCliente(req, res) {
     if (email && email !== cliente.email) {
       const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!regexEmail.test(email)) {
-        return res.status(400).json({ ok: false, msg: 'Email inválido' });
+        return res.status(400).json({ ok: false, msg: "Email inválido" });
       }
       const emailTomado = await prisma.cliente.findFirst({
         where: { email, NOT: { id } },
         select: { id: true },
       });
       if (emailTomado) {
-        return res.status(400).json({ ok: false, msg: 'El email ya está registrado por otro cliente' });
+        return res.status(400).json({
+          ok: false,
+          msg: "El email ya está registrado por otro cliente",
+        });
       }
     }
 
     // 4) Normalizo opcionales (vacío -> null) para no pisar con cadenas vacías
-    const toNull = (v) => (v === '' || v === undefined ? null : v);
+    const toNull = (v) => (v === "" || v === undefined ? null : v);
 
-    const uid      = req.uid ?? null;         // id del usuario logueado (middleware JWT)
-    const userName = req.userName ?? null;    // string del usuario, si lo guardás
+    const uid = req.uid ?? null; // id del usuario logueado (middleware JWT)
+    const userName = req.userName ?? null; // string del usuario, si lo guardás
 
     let actualizado;
 
@@ -218,10 +275,10 @@ async function actualizarCliente(req, res) {
       actualizado = await tx.cliente.update({
         where: { id },
         data: {
-          nombre:   nombre   ?? undefined,
+          nombre: nombre ?? undefined,
           apellido: apellido ?? undefined,
           telefono: toNull(telefono) ?? undefined,
-          email:    toNull(email)    ?? undefined,
+          email: toNull(email) ?? undefined,
           // estado:  'activo' | 'inactivo' (no lo tocamos acá)
         },
       });
@@ -235,7 +292,7 @@ async function actualizarCliente(req, res) {
         data: {
           clienteId: id,
           version: nextVersion,
-          accion: 'ACTUALIZAR',
+          accion: "ACTUALIZAR",
           usuarioId: uid ? Number(uid) : null,
           user: userName,
           dni: actualizado.dni,
@@ -251,15 +308,20 @@ async function actualizarCliente(req, res) {
 
     return res.json({
       ok: true,
-      msg: 'Cliente actualizado correctamente',
+      msg: "Cliente actualizado correctamente",
       cliente: actualizado,
     });
   } catch (e) {
-    if (e.code === 'P2002') {
-      return res.status(400).json({ ok: false, msg: 'DNI o Email ya registrados' });
+    if (e.code === "P2002") {
+      return res
+        .status(400)
+        .json({ ok: false, msg: "DNI o Email ya registrados" });
     }
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Error al actualizar. Hable con el administrador.' });
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al actualizar. Hable con el administrador.",
+    });
   }
 }
 
@@ -271,42 +333,43 @@ async function eliminarCliente(req, res) {
   try {
     const cliente = await prisma.cliente.findUnique({ where: { id } });
     if (!cliente) {
-      return res.status(404).json({ ok: false, msg: 'Cliente inexistente' });
+      return res.status(404).json({ ok: false, msg: "Cliente inexistente" });
     }
 
     //Bloqueo si tiene reservas asociadas (por defecto: activas)
-    const reservasAsociadas = await contarReservasCliente(id, true); 
+    const reservasAsociadas = await contarReservasCliente(id, true);
     if (reservasAsociadas > 0) {
       return res.status(400).json({
         ok: false,
-        msg: 'No se puede eliminar el cliente porque tiene reservas asociadas.',
+        msg: "No se puede eliminar el cliente porque tiene reservas asociadas.",
       });
     }
 
     // Si ya está inactivo, mantenemos el mismo mensaje que tu V1
-    if (cliente.estado === 'inactivo') {
-      return res.json({ ok: true, msg: 'Cliente Eliminado' });
+    if (cliente.estado === "inactivo") {
+      return res.json({ ok: true, msg: "Cliente Eliminado" });
     }
 
-    const uid      = req.uid ?? null;       // id del usuario (JWT)
-    const userName = req.userName ?? null;  // nombre de usuario (si lo guardás)
+    const uid = req.uid ?? null; // id del usuario (JWT)
+    const userName = req.userName ?? null; // nombre de usuario (si lo guardás)
 
     await prisma.$transaction(async (tx) => {
       // 1) marcar inactivo
       const inactivado = await tx.cliente.update({
         where: { id },
-        data: { estado: 'inactivo' },
+        data: { estado: "inactivo" },
       });
 
       // 2) versión siguiente del histórico
-      const nextVersion = (await tx.clienteHist.count({ where: { clienteId: id } })) + 1;
+      const nextVersion =
+        (await tx.clienteHist.count({ where: { clienteId: id } })) + 1;
 
       // 3) snapshot en ClienteHist
       await tx.clienteHist.create({
         data: {
           clienteId: id,
           version: nextVersion,
-          accion: 'INACTIVAR',              // (usa 'ELIMINAR' si preferís)
+          accion: "INACTIVAR", // (usa 'ELIMINAR' si preferís)
           usuarioId: uid ? Number(uid) : null,
           user: userName,
           dni: inactivado.dni,
@@ -314,25 +377,27 @@ async function eliminarCliente(req, res) {
           apellido: inactivado.apellido,
           telefono: inactivado.telefono,
           email: inactivado.email,
-          estado: inactivado.estado,        // 'inactivo'
+          estado: inactivado.estado, // 'inactivo'
           // changedAt lo completa Prisma por @default(now())
         },
       });
     });
 
     // mismo texto que tu backend anterior para no romper el front
-    return res.json({ ok: true, msg: 'Cliente Eliminado' });
+    return res.json({ ok: true, msg: "Cliente Eliminado" });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    return res
+      .status(500)
+      .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
 
 module.exports = {
-    crearCliente,
-    buscarCliente,
-    getCliente,
-    getClientePorApellido,
-    actualizarCliente,
-    eliminarCliente
-}
+  crearCliente,
+  buscarCliente,
+  getCliente,
+  getClientePorApellido,
+  actualizarCliente,
+  eliminarCliente,
+};

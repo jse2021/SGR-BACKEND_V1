@@ -9,11 +9,11 @@ datasource db {
 
 model Cliente {
   id       Int       @id @default(autoincrement())
-  dni      String    @unique
+  dni      String    
   nombre   String
   apellido String
   telefono String?
-  email    String?   @unique
+  email    String?   
   Reserva  Reserva[]
   estado   String    @default("activo") // ← nuevo
 
@@ -40,7 +40,7 @@ model ClienteHist {
 
 model Cancha {
   id            Int            @id @default(autoincrement())
-  nombre        String         @unique
+  nombre        String         
   medidas       String
   estado        String         @default("activo")
   createdAt     DateTime       @default(now())
@@ -114,12 +114,12 @@ model ConfiguracionHist {
 
 model Usuario {
   id           Int           @id @default(autoincrement())
-  user         String        @unique
+  user         String        
   password     String
   nombre       String
   apellido     String
   celular      String
-  email        String?       @unique
+  email        String?       
   tipo_usuario String
   estado       String        @default("activo")
   createdAt    DateTime      @default(now())

@@ -1,38 +1,41 @@
-const bcrypt = require('bcryptjs');
-const { prisma } = require('../db');
-const { generarJWT } = require('../helpers/jwt');
+const bcrypt = require("bcryptjs");
+const { prisma } = require("../db");
+const { generarJWT } = require("../helpers/jwt");
 // helper: convierte ''/undefined -> null (para no pisar con cadenas vacías)
-const toNull = (v) => (v === '' || v === undefined ? null : v);
-
-
+const toNull = (v) => (v === "" || v === undefined ? null : v);
 
 let tipoUsuario;
 
 //================================LOGIN====================================
 const loginUsuario = async (req, res) => {
-  const user = (req.body.user || '').trim();
-  const password = req.body.password || '';
+  const user = (req.body.user || "").trim();
+  const password = req.body.password || "";
 
   try {
     if (!user || password.length < 6) {
-      return res.status(400).json({ ok: false, msg: 'Credenciales inválidas' });
+      return res.status(400).json({ ok: false, msg: "Credenciales inválidas" });
     }
 
-    // 1) Buscar por user (es UNIQUE)
-    const usuario = await prisma.usuario.findUnique({ where: { user } });
+    // 1) Buscar por user y estado
+    const usuario = await prisma.usuario.findFirst({
+      where: { user, estado: "activo" },
+    });
 
     // 2) No existe o está inactivo -> no permitir login
     if (!usuario) {
-      return res.status(400).json({ ok: false, msg: 'Usuario no encontrado' });
+      return res.status(400).json({ ok: false, msg: "Usuario no encontrado" });
     }
-    if (usuario.estado !== 'activo') {
-      return res.status(403).json({ ok: false, msg: 'Usuario inactivo. Contacte al administrador.' });
+    if (usuario.estado !== "activo") {
+      return res.status(403).json({
+        ok: false,
+        msg: "Usuario inactivo. Contacte al administrador.",
+      });
     }
 
     // 3) Validar password
     const okPass = bcrypt.compareSync(password, usuario.password);
     if (!okPass) {
-      return res.status(400).json({ ok: false, msg: 'Password incorrecto' });
+      return res.status(400).json({ ok: false, msg: "Password incorrecto" });
     }
 
     // 4) Generar token
@@ -40,7 +43,7 @@ const loginUsuario = async (req, res) => {
 
     return res.json({
       ok: true,
-      msg: 'Accedo a calendario',
+      msg: "Accedo a calendario",
       user: {
         id: usuario.id,
         user: usuario.user,
@@ -52,7 +55,9 @@ const loginUsuario = async (req, res) => {
     });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Por favor, consulte al administrador' });
+    return res
+      .status(500)
+      .json({ ok: false, msg: "Por favor, consulte al administrador" });
   }
 };
 
@@ -60,7 +65,9 @@ const loginUsuario = async (req, res) => {
 const revalidartoken = async (req, res) => {
   const { id, user } = req; // seteado por validar-jwt
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { id: Number(id) } });
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: Number(id) },
+    });
     const token = await generarJWT(id, user);
     return res.json({
       ok: true,
@@ -75,49 +82,62 @@ const revalidartoken = async (req, res) => {
     });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Error al revalidar el token. Hable con el administrador.' });
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al revalidar el token. Hable con el administrador.",
+    });
   }
 };
 //=====================================CREAR===========================================
 const crearUsuario = async (req, res) => {
-  const { nombre, apellido, celular, email, password, user, tipo_usuario } = req.body;
+  const { nombre, apellido, celular, email, password, user, tipo_usuario } =
+    req.body;
 
   try {
-
     // Validaciones básicas
     if (!user || !password || !nombre || !apellido || !tipo_usuario) {
-      return res.status(400).json({ ok: false, msg: 'user, password, nombre, apellido y tipo_usuario son obligatorios' });
-    }
-    if ((password?.length || 0) < 6) {
-      return res.status(400).json({ ok: false, msg: 'El password debe tener al menos 6 caracteres' });
-    }
-
-    const existente = await prisma.usuario.findUnique({ where: { user } });
-    if (existente) {
       return res.status(400).json({
         ok: false,
-        msg: 'Nombre de usuario existente en la base de datos',
-        uid: existente.id,
-        name: existente.user,
-        nombre: existente.nombre,
-        apellido: existente.apellido
+        msg: "user, password, nombre, apellido y tipo_usuario son obligatorios",
+      });
+    }
+    if ((password?.length || 0) < 6) {
+      return res.status(400).json({
+        ok: false,
+        msg: "El password debe tener al menos 6 caracteres",
       });
     }
 
+    // user tomado SOLO si hay un ACTIVO
+    const userTomado = await prisma.usuario.findFirst({
+      where: { user, estado: "activo" },
+      select: { id: true, user: true, nombre: true, apellido: true },
+    });
+    if (userTomado) {
+      return res
+        .status(400)
+        .json({ ok: false, msg: "Nombre de usuario existente (ACTIVO)" });
+    }
+
     if (email) {
-      const e = await prisma.usuario.findFirst({ where: { email } });
-      if (e) return res.status(400).json({ 
-        ok: false, msg: 'El email ya está registrado por otro usuario',
-        
-       });
+      const emailTomado = await prisma.usuario.findFirst({
+        where: { email, estado: "activo" },
+        select: { id: true, email: true },
+      });
+      if (emailTomado) {
+        return res.status(400).json({
+          ok: false,
+          msg: "El email ya está registrado por otro usuario ACTIVO",
+        });
+      }
     }
 
     // Hash de password
     const salt = bcrypt.genSaltSync();
     const passwordHash = bcrypt.hashSync(password, salt);
 
-    const actorId  = req.uid ?? null;       // quien hace el alta (si hay JWT)
-    const actorStr = req.userName ?? null;  // nombre del actor (opcional)
+    const actorId = req.uid ?? null; // quien hace el alta (si hay JWT)
+    const actorStr = req.userName ?? null; // nombre del actor (opcional)
 
     let nuevo;
     await prisma.$transaction(async (tx) => {
@@ -129,27 +149,27 @@ const crearUsuario = async (req, res) => {
           nombre,
           apellido,
           celular: celular || null,
-          email:   email   || null,
+          email: email || null,
           tipo_usuario,
-          estado: 'activo',
+          estado: "activo",
         },
       });
 
       // 2) snapshot histórico (versión 1)
       await tx.usuarioHist.create({
         data: {
-          usuarioId:    nuevo.id,    // target
-          version:      1,
-          accion:       'CREAR',
-          actorId:      actorId ? Number(actorId) : null,
-          user:         actorStr,
-          userLogin:    nuevo.user,  // snapshot del username del usuario creado
-          nombre:       nuevo.nombre,
-          apellido:     nuevo.apellido,
-          celular:      nuevo.celular,
-          email:        nuevo.email,
+          usuarioId: nuevo.id, // target
+          version: 1,
+          accion: "CREAR",
+          actorId: actorId ? Number(actorId) : null,
+          user: actorStr,
+          userLogin: nuevo.user, // snapshot del username del usuario creado
+          nombre: nuevo.nombre,
+          apellido: nuevo.apellido,
+          celular: nuevo.celular,
+          email: nuevo.email,
           tipo_usuario: nuevo.tipo_usuario,
-          estado:       nuevo.estado, // 'activo'
+          estado: nuevo.estado, // 'activo'
         },
       });
     });
@@ -158,46 +178,59 @@ const crearUsuario = async (req, res) => {
 
     return res.status(201).json({
       ok: true,
-      msg: 'Usuario creado',
+      msg: "Usuario creado",
       name: nuevo.nombre,
       email: nuevo.email,
       token,
     });
   } catch (e) {
-    if (e.code === 'P2002') return res.status(400).json({ ok: false, msg: 'Usuario o email duplicado' });
+    if (e.code === "P2002")
+      return res
+        .status(400)
+        .json({ ok: false, msg: "Usuario o email duplicado" });
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'por favor hable con el administrador' });
+    return res
+      .status(500)
+      .json({ ok: false, msg: "por favor hable con el administrador" });
   }
 };
 //======================================BUSCAR_USUARIO============================================
 const buscarUsuarios = async (req, res) => {
   const { termino } = req.params;
-  const page = Math.max(parseInt(req.query.page || '1', 10), 1);
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '5', 10), 1), 100);
+  const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+  const limit = Math.min(
+    Math.max(parseInt(req.query.limit || "5", 10), 1),
+    100
+  );
   const skip = (page - 1) * limit;
 
   try {
     const q = termino?.trim().toLowerCase();
     // siempre filtramos por activos
-    const baseWhere = { estado: 'activo' };
+    const baseWhere = { estado: "activo" };
 
     const where = q
       ? {
-        AND:[
-          baseWhere,
-          {
-          OR: [
-            { nombre:   { contains: q, mode: 'insensitive' } },
-            { apellido: { contains: q, mode: 'insensitive' } },
-            { user:     { contains: q, mode: 'insensitive' } },
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { nombre: { contains: q, mode: "insensitive" } },
+                { apellido: { contains: q, mode: "insensitive" } },
+                { user: { contains: q, mode: "insensitive" } },
+              ],
+            },
           ],
-        },
-      ]
         }
       : baseWhere;
 
     const [usuarios, total] = await Promise.all([
-      prisma.usuario.findMany({ where, skip, take: limit, orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }] }),
+      prisma.usuario.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
+      }),
       prisma.usuario.count({ where }),
     ]);
 
@@ -207,21 +240,23 @@ const buscarUsuarios = async (req, res) => {
       total,
       totalPages: Math.ceil(total / limit),
       currentPage: page,
-      msg: 'Usuarios encontrados',
+      msg: "Usuarios encontrados",
     });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    res.status(500).json({ ok: false, msg: "Consulte con el administrador" });
   }
 };
 //----------------------------GET_TODOS-----------------------------
 const getUsuario = async (_req, res) => {
   try {
-    const usuario = await prisma.usuario.findMany({ orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }] });
-    res.json({ ok: true, usuario, msg: 'Muestro usuario' });
+    const usuario = await prisma.usuario.findMany({
+      orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
+    });
+    res.json({ ok: true, usuario, msg: "Muestro usuario" });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    res.status(500).json({ ok: false, msg: "Consulte con el administrador" });
   }
 };
 //----------------------------GET_POR_APELLIDO-----------------------------
@@ -230,12 +265,12 @@ const getUsuarioPorUser = async (req, res) => {
   try {
     const usuario = await prisma.usuario.findMany({ where: { apellido } });
     if (!usuario || usuario.length === 0) {
-      return res.status(400).json({ ok: false, msg: 'El usuario no existe' });
+      return res.status(400).json({ ok: false, msg: "El usuario no existe" });
     }
-    return res.status(200).json({ ok: true, usuario, msg: 'Muestro usuario' });
+    return res.status(200).json({ ok: true, usuario, msg: "Muestro usuario" });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    res.status(500).json({ ok: false, msg: "Consulte con el administrador" });
   }
 };
 //==============================ACTUALIZAR===========================================
@@ -243,19 +278,19 @@ async function actualizarUsuario(req, res) {
   try {
     const id = Number(req.params.id);
     const {
-      user,          // NO permitimos cambiarlo
-      password,      // opcional
+      user, // NO permitimos cambiarlo
+      password, // opcional
       nombre,
       apellido,
       celular,
       email,
-      tipo_usuario,  // opcional
-      estado         // opcional (si no querés permitirlo, quita esta línea del update)
+      tipo_usuario, // opcional
+      estado, // opcional (si no querés permitirlo, quita esta línea del update)
     } = req.body || {};
 
     const usuario = await prisma.usuario.findUnique({ where: { id } });
     if (!usuario) {
-      return res.status(404).json({ ok: false, msg: 'Usuario no encontrado' });
+      return res.status(404).json({ ok: false, msg: "Usuario no encontrado" });
     }
 
     // bloquear cambio de user
@@ -265,19 +300,21 @@ async function actualizarUsuario(req, res) {
         msg: 'Cambio de "user" deshabilitado. Cree un usuario nuevo.',
       });
     }
-
     // validar email si cambia
     if (email && email !== usuario.email) {
       const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!regexEmail.test(email)) {
-        return res.status(400).json({ ok: false, msg: 'Email inválido' });
+        return res.status(400).json({ ok: false, msg: "Email inválido" });
       }
       const emailTomado = await prisma.usuario.findFirst({
-        where: { email, NOT: { id } },
+        where: { email, estado: "activo", NOT: { id } }, // <-- solo activos, excluyendo el mismo id
         select: { id: true },
       });
       if (emailTomado) {
-        return res.status(400).json({ ok: false, msg: 'El email ya está registrado por otro usuario' });
+        return res.status(400).json({
+          ok: false,
+          msg: "El email ya está registrado por otro usuario ACTIVO",
+        });
       }
     }
 
@@ -285,13 +322,16 @@ async function actualizarUsuario(req, res) {
     let passwordHash;
     if (password !== undefined) {
       if ((password?.length || 0) < 6) {
-        return res.status(400).json({ ok: false, msg: 'El password debe tener al menos 6 caracteres' });
+        return res.status(400).json({
+          ok: false,
+          msg: "El password debe tener al menos 6 caracteres",
+        });
       }
       const salt = bcrypt.genSaltSync();
       passwordHash = bcrypt.hashSync(password, salt);
     }
 
-    const actorId  = req.uid ?? null;
+    const actorId = req.uid ?? null;
     const actorStr = req.userName ?? null;
 
     let actualizado;
@@ -303,12 +343,12 @@ async function actualizarUsuario(req, res) {
         data: {
           // user: no se toca
           password: passwordHash ?? undefined,
-          nombre:   nombre       ?? undefined,
-          apellido: apellido     ?? undefined,
-          celular:  toNull(celular) ?? undefined,
-          email:    toNull(email)   ?? undefined,
+          nombre: nombre ?? undefined,
+          apellido: apellido ?? undefined,
+          celular: toNull(celular) ?? undefined,
+          email: toNull(email) ?? undefined,
           tipo_usuario: tipo_usuario ?? undefined,
-          estado:   estado       ?? undefined, // quita si NO querés permitir cambiar estado aquí
+          estado: estado ?? undefined, // quita si NO querés permitir cambiar estado aquí
         },
       });
 
@@ -319,18 +359,18 @@ async function actualizarUsuario(req, res) {
       // snapshot histórico
       await tx.usuarioHist.create({
         data: {
-          usuarioId:    id,
-          version:      nextVersion,
-          accion:       'ACTUALIZAR',
-          actorId:      actorId ? Number(actorId) : null,
-          user:         actorStr,              // actor (string)
-          userLogin:    actualizado.user,      // username del usuario actualizado
-          nombre:       actualizado.nombre,
-          apellido:     actualizado.apellido,
-          celular:      actualizado.celular,
-          email:        actualizado.email,
+          usuarioId: id,
+          version: nextVersion,
+          accion: "ACTUALIZAR",
+          actorId: actorId ? Number(actorId) : null,
+          user: actorStr, // actor (string)
+          userLogin: actualizado.user, // username del usuario actualizado
+          nombre: actualizado.nombre,
+          apellido: actualizado.apellido,
+          celular: actualizado.celular,
+          email: actualizado.email,
           tipo_usuario: actualizado.tipo_usuario,
-          estado:       actualizado.estado,
+          estado: actualizado.estado,
           // changedAt lo setea @default(now())
         },
       });
@@ -338,7 +378,7 @@ async function actualizarUsuario(req, res) {
 
     return res.json({
       ok: true,
-      msg: 'Usuario actualizado correctamente',
+      msg: "Usuario actualizado correctamente",
       usuario: {
         id: actualizado.id,
         user: actualizado.user,
@@ -353,11 +393,15 @@ async function actualizarUsuario(req, res) {
       },
     });
   } catch (e) {
-    if (e.code === 'P2002') {
-      return res.status(400).json({ ok: false, msg: 'Usuario o email duplicado' });
+    if (e.code === "P2002") {
+      return res
+        .status(400)
+        .json({ ok: false, msg: "Usuario o email duplicado" });
     }
     console.error(e);
-    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    return res
+      .status(500)
+      .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
 //============================================ELIMINAR=================================
@@ -366,54 +410,58 @@ const eliminarUsuario = async (req, res) => {
   try {
     // (opcional) evitar que un usuario se desactive a sí mismo
     if (req.uid && Number(req.uid) === id) {
-      return res.status(400).json({ ok: false, msg: 'No podés inactivar tu propio usuario.' });
-    }
-    
-    const usuario = await prisma.usuario.findUnique({ where: { id: id } });
-    if (!usuario) return res.status(404).json({ ok: false, msg: 'Usuario inexistente' });
-    
-    // si ya estaba inactivo, devolvemos OK (no rompemos el front)
-    if (usuario.estado === 'inactivo') {
-      return res.json({ ok: true, msg: 'Usuario inactivado' });
+      return res
+        .status(400)
+        .json({ ok: false, msg: "No podés inactivar tu propio usuario." });
     }
 
-    const actorId  = req.uid ?? null;      // quién ejecuta la acción (JWT)
+    const usuario = await prisma.usuario.findUnique({ where: { id: id } });
+    if (!usuario)
+      return res.status(404).json({ ok: false, msg: "Usuario inexistente" });
+
+    // si ya estaba inactivo, devolvemos OK (no rompemos el front)
+    if (usuario.estado === "inactivo") {
+      return res.json({ ok: true, msg: "Usuario inactivado" });
+    }
+
+    const actorId = req.uid ?? null; // quién ejecuta la acción (JWT)
     const actorStr = req.userName ?? null; // nombre del actor (si lo guardás)
 
-        await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       // 1) marcar inactivo
       const inactivado = await tx.usuario.update({
         where: { id },
-        data: { estado: 'inactivo' },
+        data: { estado: "inactivo" },
       });
 
       // 2) siguiente versión del histórico
-      const nextVersion = (await tx.usuarioHist.count({ where: { usuarioId: id } })) + 1;
+      const nextVersion =
+        (await tx.usuarioHist.count({ where: { usuarioId: id } })) + 1;
 
       // 3) snapshot en histórico
       await tx.usuarioHist.create({
         data: {
-          usuarioId:    id,
-          version:      nextVersion,
-          accion:       'INACTIVAR',
-          actorId:      actorId ? Number(actorId) : null,
-          user:         actorStr,            // actor (string)
-          userLogin:    inactivado.user,     // snapshot del username del usuario inactivado
-          nombre:       inactivado.nombre,
-          apellido:     inactivado.apellido,
-          celular:      inactivado.celular,
-          email:        inactivado.email,
+          usuarioId: id,
+          version: nextVersion,
+          accion: "INACTIVAR",
+          actorId: actorId ? Number(actorId) : null,
+          user: actorStr, // actor (string)
+          userLogin: inactivado.user, // snapshot del username del usuario inactivado
+          nombre: inactivado.nombre,
+          apellido: inactivado.apellido,
+          celular: inactivado.celular,
+          email: inactivado.email,
           tipo_usuario: inactivado.tipo_usuario,
-          estado:       inactivado.estado,   // 'inactivo'
+          estado: inactivado.estado, // 'inactivo'
           // changedAt lo setea @default(now())
         },
       });
     });
 
-    return res.json({ ok: true, msg: 'Usuario eliminado' });
+    return res.json({ ok: true, msg: "Usuario eliminado" });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    res.status(500).json({ ok: false, msg: "Consulte con el administrador" });
   }
 };
 
@@ -425,5 +473,5 @@ module.exports = {
   getUsuario,
   getUsuarioPorUser,
   actualizarUsuario,
-  eliminarUsuario
+  eliminarUsuario,
 };
