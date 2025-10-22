@@ -77,10 +77,9 @@ async function crearCliente(req, res) {
       });
     }
 
-    const uid = req.uid ?? null; // id del usuario autenticado (para usuarioId)
-    const userName = req.userName ?? null; // string del usuario si lo guardás (para user)
-    console.log("req.body:", req.body);
-    console.log("normalizado.telefono:", telefono);
+    // actor autenticado (tolerante a ambos nombres por si en otro módulo usaste uid/userName)
+    const actorId = req.id ?? req.uid ?? null;
+    const actorUser = req.user ?? req.userName ?? null;
 
     let creado;
     await prisma.$transaction(async (tx) => {
@@ -102,8 +101,8 @@ async function crearCliente(req, res) {
           clienteId: creado.id,
           version: 1,
           accion: "CREAR",
-          usuarioId: uid ? Number(uid) : null,
-          user: userName, // << usa 'user' (no user2)
+          usuarioId: actorId ? Number(actorId) : null,
+          user: actorUser, // << usa 'user' (no user2)
           dni: creado.dni,
           nombre: creado.nombre,
           apellido: creado.apellido,
@@ -193,9 +192,11 @@ async function buscarCliente(req, res) {
 async function getCliente(_req, res) {
   try {
     const clientes = await prisma.cliente.findMany({
+      where: { estado: "activo" }, // <- filtro
       orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
     });
-    return res.json({ ok: true, clientes, msg: "Traigo todos los clientes" });
+
+    return res.json({ ok: true, clientes, msg: "Traigo clientes ACTIVOS" });
   } catch (e) {
     console.error(e);
     return res
@@ -203,6 +204,7 @@ async function getCliente(_req, res) {
       .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
+
 // ===================================== GET POR APELLIDO =========================================
 async function getClientePorApellido(req, res) {
   const { apellido } = req.params;
@@ -265,8 +267,8 @@ async function actualizarCliente(req, res) {
     // 4) Normalizo opcionales (vacío -> null) para no pisar con cadenas vacías
     const toNull = (v) => (v === "" || v === undefined ? null : v);
 
-    const uid = req.uid ?? null; // id del usuario logueado (middleware JWT)
-    const userName = req.userName ?? null; // string del usuario, si lo guardás
+    const actorId = req.id ?? req.uid ?? null;
+    const actorUser = req.user ?? req.userName ?? null;
 
     let actualizado;
 
@@ -293,8 +295,8 @@ async function actualizarCliente(req, res) {
           clienteId: id,
           version: nextVersion,
           accion: "ACTUALIZAR",
-          usuarioId: uid ? Number(uid) : null,
-          user: userName,
+          usuarioId: actorId ? Number(actorId) : null,
+          user: actorUser,
           dni: actualizado.dni,
           nombre: actualizado.nombre,
           apellido: actualizado.apellido,
@@ -350,8 +352,8 @@ async function eliminarCliente(req, res) {
       return res.json({ ok: true, msg: "Cliente Eliminado" });
     }
 
-    const uid = req.uid ?? null; // id del usuario (JWT)
-    const userName = req.userName ?? null; // nombre de usuario (si lo guardás)
+    const actorId = req.id ?? req.uid ?? null;
+    const actorUser = req.user ?? req.userName ?? null;
 
     await prisma.$transaction(async (tx) => {
       // 1) marcar inactivo
@@ -370,8 +372,8 @@ async function eliminarCliente(req, res) {
           clienteId: id,
           version: nextVersion,
           accion: "INACTIVAR", // (usa 'ELIMINAR' si preferís)
-          usuarioId: uid ? Number(uid) : null,
-          user: userName,
+          usuarioId: actorId ? Number(actorId) : null,
+          user: actorUser,
           dni: inactivado.dni,
           nombre: inactivado.nombre,
           apellido: inactivado.apellido,

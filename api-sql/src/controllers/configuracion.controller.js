@@ -37,8 +37,8 @@ async function crearMontoCancha(req, res) {
       });
     }
 
-    const actorId = req.uid ?? null; // quién hace el cambio (JWT)
-    const actorStr = req.userName ?? null; // nombre del actor si lo guardás
+    const actorId = req.id ?? req.uid ?? null;
+    const actorUser = req.user ?? req.userName ?? null;
 
     // 3) Crear + histórico (versión 1)
     await prisma.$transaction(async (tx) => {
@@ -57,7 +57,7 @@ async function crearMontoCancha(req, res) {
           version: 1,
           accion: "CREAR",
           usuarioId: actorId ? Number(actorId) : null,
-          user: actorStr,
+          user: actorUser,
           monto_cancha: conf.monto_cancha,
           monto_sena: conf.monto_sena,
         },
@@ -78,12 +78,17 @@ async function crearMontoCancha(req, res) {
 async function getMontoCanchas(req, res) {
   const { nombre } = req.params;
   try {
-    const cancha = await prisma.cancha.findUnique({ where: { nombre } });
+    const nombreTrim = (nombre || "").trim();
+    const cancha = await prisma.cancha.findFirst({
+      where: {
+        estado: "activo",
+        nombre: { equals: nombreTrim, mode: "insensitive" },
+      },
+    });
     if (!cancha) {
-      return res.status(400).json({
-        ok: false,
-        msg: "No existen configuraciones para esta cancha",
-      });
+      return res
+        .status(404)
+        .json({ ok: false, msg: "La cancha activa no existe" });
     }
 
     const conf = await prisma.configuracion.findUnique({
@@ -189,11 +194,17 @@ async function getCanchasPrecio(_req, res) {
 async function actualizarMontoCancha(req, res) {
   const { nombre } = req.params;
   try {
-    const cancha = await prisma.cancha.findUnique({ where: { nombre } });
+    const nombreTrim = (nombre || "").trim();
+    const cancha = await prisma.cancha.findFirst({
+      where: {
+        estado: "activo",
+        nombre: { equals: nombreTrim, mode: "insensitive" },
+      },
+    });
     if (!cancha) {
       return res
         .status(400)
-        .json({ ok: false, msg: "La cancha no existe en la base de datos" });
+        .json({ ok: false, msg: "La cancha no existe (activa)" });
     }
 
     const conf = await prisma.configuracion.findUnique({
@@ -217,9 +228,8 @@ async function actualizarMontoCancha(req, res) {
         .status(400)
         .json({ ok: false, msg: "No hay cambios para aplicar" });
     }
-
-    const actorId = req.uid ?? null;
-    const actorStr = req.userName ?? null;
+    const actorId = req.id ?? req.uid ?? null;
+    const actorUser = req.user ?? req.userName ?? null;
 
     let after;
     await prisma.$transaction(async (tx) => {
@@ -242,7 +252,7 @@ async function actualizarMontoCancha(req, res) {
           version: nextVersion,
           accion: "ACTUALIZAR",
           usuarioId: actorId ? Number(actorId) : null,
-          user: actorStr,
+          user: actorUser,
           monto_cancha: after.monto_cancha,
           monto_sena: after.monto_sena,
         },
