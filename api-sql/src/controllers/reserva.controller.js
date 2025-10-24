@@ -383,8 +383,6 @@ async function obtenerHorasDisponibles(req, res) {
     });
 
     const horasOcupadas = reservasRegistradas.map((r) => r.hora);
-
-    // el mismo set estático de horas que usás en el front/backend actual
     const todasLasHoras = [
       "08:00",
       "09:00",
