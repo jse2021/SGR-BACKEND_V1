@@ -346,76 +346,51 @@ async function obtenerHorasDisponibles(req, res) {
     const { fecha, cancha, reservaId } = req.body;
 
     if (!fecha || !cancha) {
-      return res.status(400).json({
-        ok: false,
-        msg: "Faltan datos: fecha y/o cancha",
-      });
+      return res.status(400).json({ ok: false, msg: "Faltan datos: fecha y/o cancha" });
     }
 
-    // cancha por NOMBRE, pero SOLO ACTIVA (findFirst; ya no hay unique por nombre)
+    // Día puro UTC (00:00Z) como guardás en SQL
+    const fechaDia = dateOnlyUTC(fecha); // ya lo tenés declarado arriba :contentReference[oaicite:0]{index=0}
+
+    // Resolver cancha ACTIVA por NOMBRE (case-insensitive)
     const canchaRow = await prisma.cancha.findFirst({
-      where: { nombre: String(cancha).trim(), estado: "activo" },
+      where: { estado: "activo", nombre: { equals: String(cancha).trim(), mode: "insensitive" } },
       select: { id: true },
     });
     if (!canchaRow) {
-      return res
-        .status(404)
-        .json({ ok: false, msg: "Cancha no encontrada (activa)" });
+      return res.status(404).json({ ok: false, msg: "Cancha no encontrada (activa)" });
     }
 
-    const fechaDia = dateOnlyUTC(fecha);
     const where = {
       fechaCopia: fechaDia,
       canchaId: canchaRow.id,
       OR: [{ estado: "activo" }, { estado: { equals: "" } }],
     };
 
-    // excluir la propia reserva cuando estás editando
+    // Excluir mi propia reserva cuando edito
     const idNum = Number(reservaId);
-    if (reservaId !== undefined && Number.isFinite(idNum) && idNum > 0) {
-      where.NOT = { id: idNum };
-    }
+    if (Number.isFinite(idNum) && idNum > 0) where.NOT = { id: idNum };
 
+    // Traer horas ocupadas ordenadas
     const reservasRegistradas = await prisma.reserva.findMany({
       where,
       select: { hora: true },
       orderBy: { hora: "asc" },
     });
 
-    const horasOcupadas = reservasRegistradas.map((r) => r.hora);
+    const horasOcupadas = reservasRegistradas.map(r => String(r.hora).padStart(5, "0"));
+
     const todasLasHoras = [
-      "08:00",
-      "09:00",
-      "10:00",
-      "11:00",
-      "12:00",
-      "13:00",
-      "14:00",
-      "15:00",
-      "16:00",
-      "17:00",
-      "18:00",
-      "19:00",
-      "20:00",
-      "21:00",
-      "22:00",
-      "23:00",
+      "08:00","09:00","10:00","11:00","12:00","13:00",
+      "14:00","15:00","16:00","17:00","18:00","19:00",
+      "20:00","21:00","22:00","23:00",
     ];
 
-    const horasDisponibles = todasLasHoras.filter(
-      (h) => !horasOcupadas.includes(h)
-    );
-
-    return res.status(200).json({
-      ok: true,
-      horasDisponibles,
-    });
+    const horasDisponibles = todasLasHoras.filter(h => !horasOcupadas.includes(h));
+    return res.status(200).json({ ok: true, horasDisponibles });
   } catch (error) {
     console.error("Error en obtenerHorasDisponibles:", error);
-    return res.status(500).json({
-      ok: false,
-      msg: "Error interno al obtener horarios disponibles",
-    });
+    return res.status(500).json({ ok: false, msg: "Error interno al obtener horarios disponibles" });
   }
 }
 
@@ -447,7 +422,6 @@ async function actualizarReserva(req, res) {
       });
       nueva.cancha = c?.nombre || actual.title;
     }
-    // 4) Resolver cancha de destino (por NOMBRE) y cliente (por DNI) si cambian
     // 4) Resolver cancha de destino (por NOMBRE) y cliente (por DNI) si cambian
     const destCancha = await prisma.cancha.findFirst({
       where: {
@@ -1240,7 +1214,7 @@ async function recaudacionFormasDePago(req, res) {
     if (!canchaRow)
       return res.status(400).json({ ok: false, msg: "No existe cancha" });
 
-    // normalizo forma_pago y estado_pago (permito "SENA" -> "SEÑA", y "TODAS") //------------------> dudas
+    // normalizo forma_pago y estado_pago (permito "SENA" -> "SEÑA", y "TODAS") 
     const norm = (s = "") => String(s).trim().toUpperCase();
     let forma = norm(req.params.forma_pago || "TODAS");
     let estadoPago = norm(req.params.estado_pago || "TODAS");
@@ -1261,7 +1235,7 @@ async function recaudacionFormasDePago(req, res) {
       fechaCopia: dayUTC,
     };
 
-    // agrego forma_pago si no es TODAS//--------------------------------------------------------------->dudas
+    // agrego forma_pago si no es TODAS
     const withForma =
       forma && forma !== "TODAS"
         ? { ...whereBase, forma_pago: forma }
