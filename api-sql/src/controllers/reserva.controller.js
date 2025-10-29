@@ -1191,153 +1191,327 @@ async function estadoRecaudacion(req, res) {
       .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
+
 //================================================RECAUDACIONFORMASDEPAGO====================================
+// async function recaudacionFormasDePago(req, res) {
+//   try {
+//     // 1) Params + decode + trim
+//     let { fecha, cancha, forma_pago, estado_pago } = req.params;
+//     const sFecha = String(fecha || "").trim();
+
+//     // decodifico por si vienen espacios/acentos en URL (cancha%20medio, SE%C3%91A, etc.)
+//     cancha = decodeURIComponent(String(cancha || "")).trim();
+//     forma_pago = decodeURIComponent(String(forma_pago || "")).trim();
+//     estado_pago = decodeURIComponent(String(estado_pago || "")).trim();
+
+//     // 2) Fecha YYYY-MM-DD -> 00:00Z
+//     const YMD = /^\d{4}-\d{2}-\d{2}$/;
+//     if (!YMD.test(sFecha)) {
+//       return res.status(400).json({ ok: false, msg: "Fecha inválida (YYYY-MM-DD)" });
+//     }
+//     const [y, m, d] = sFecha.split("-").map(Number);
+//     const dayUTC = new Date(Date.UTC(y, m - 1, d));
+
+//     // 3) Resolver cancha (si NO es TODAS). Solo activas, case-insensitive
+//     let canchaRow = null;
+//     if (cancha && cancha.toUpperCase() !== "TODAS") {
+//       canchaRow = await prisma.cancha.findFirst({
+//         where: { estado: "activo", nombre: { equals: cancha, mode: "insensitive" } },
+//         select: { id: true, nombre: true },
+//       });
+//       if (!canchaRow) {
+//         return res.status(404).json({ ok: false, msg: "Cancha no encontrada (activa)" });
+//       }
+//     }
+
+//     // 4) Normalizar forma/estado (acepto SENA -> SEÑA; TODAS no filtra)
+//     const norm = (s = "") =>
+//       String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+//     let forma = norm(forma_pago || "TODAS");
+//     let estado = norm(estado_pago || "TODAS");
+//     if (forma === "SENA") forma = "SEÑA"; // reponer la ñ
+//     if (estado === "SENA") estado = "SEÑA";
+
+//     // 5) Paginación
+//     const q = req.query || {};
+//     const limit = Number(q.limite ?? q.limit ?? 10);
+//     const page = q.page ? Math.max(1, Number(q.page)) : null;
+//     const desde = page ? (page - 1) * limit : Number(q.desde ?? 0);
+//     const skip = Math.max(0, desde);
+//     const take = Math.max(1, Math.min(100, limit));
+
+//     // 6) Filtro base (día exacto, solo activas) + cancha si corresponde
+//     let whereBase = {
+//       estado: "activo",
+//       fechaCopia: dayUTC,
+//     };
+//     if (canchaRow) whereBase.canchaId = canchaRow.id;
+
+//   if (forma && forma !== "TODAS") {
+  
+//   whereBase.forma_pago = { equals: forma, mode: "insensitive" };
+// }
+
+// if (estado && estado !== "TODAS") {
+//   whereBase.estado_pago = { equals: estado, mode: "insensitive" };
+// }
+
+
+//     // 7) Precio base (para deuda SEÑA/IMPAGO) – usa la conf de la cancha cuando hay cancha; si no, 0
+//     let precioBase = 0;
+//     if (canchaRow) {
+//       const conf = await prisma.configuracion.findFirst({
+//         where: { canchaId: canchaRow.id },
+//         orderBy: { createdAt: "desc" }, // si tenés timestamps
+//       });
+//       precioBase = Number(conf?.monto_cancha ?? 0);
+//     }
+
+//     // 8) Totales globales + total items
+//     const [{ _sum }, total] = await Promise.all([
+//       prisma.reserva.aggregate({
+//         where: whereBase,
+//         _sum: { monto_cancha: true, monto_sena: true },
+//       }),
+//       prisma.reserva.count({ where: whereBase }),
+//     ]);
+
+//     const totalMontoCancha = Number(_sum.monto_cancha || 0);
+//     const totalMontoSena = Number(_sum.monto_sena || 0);
+
+//     // Deuda global (si hay cancha definida; si no, deuda=0 porque no tenemos precio base)
+//     let totalDeuda = 0;
+//     if (canchaRow) {
+//       const rowsForDebt = await prisma.reserva.findMany({
+//         where: whereBase,
+//         select: { estado_pago: true, monto_sena: true },
+//       });
+//       totalDeuda = rowsForDebt.reduce((acc, r) => {
+//         if (r.estado_pago === "TOTAL") return acc;
+//         if (r.estado_pago === "SEÑA")
+//           return acc + Math.max(0, precioBase - Number(r.monto_sena || 0));
+//         return acc + precioBase; // IMPAGO
+//       }, 0);
+//     }
+
+//     // 9) Página de resultados (incluyendo relaciones para mostrar nombres)
+//     const rows = await prisma.reserva.findMany({
+//       where: whereBase,
+//       orderBy: [{ fechaCopia: "asc" }, { hora: "asc" }, { id: "asc" }],
+//       skip,
+//       take,
+//       include: {
+//         cancha: { select: { nombre: true } },
+//         cliente: { select: { nombre: true, apellido: true, dni: true } },
+//         usuario: { select: { user: true } },
+//       },
+//     });
+
+//     const reservas = rows.map((r) => {
+//       const consolidado = Number(r.monto_cancha || 0);
+//       const senia = Number(r.monto_sena || 0);
+//       let deuda = 0;
+//       if (canchaRow) {
+//         if (r.estado_pago === "SEÑA") deuda = Math.max(0, precioBase - senia);
+//         else if (r.estado_pago === "IMPAGO") deuda = precioBase;
+//       }
+//       return {
+//         ...r,
+//         monto_cancha: consolidado,
+//         monto_sena: senia,
+//         monto_deuda: deuda,
+//         fecha: anchorDateObj(r.fechaCopia),
+//         start: anchorDateObj(r.fechaCopia),
+//         end: anchorDateObj(r.fechaCopia),
+//         fechaCopia: anchorDateObj(r.fechaCopia),
+//       };
+//     });
+
+//     // 10) Respuesta
+//     const resp = {
+//       ok: true,
+//       total,
+//       reservas,
+//       limite: take,
+//       desde: skip,
+//       filtro: {
+//         fecha: sFecha,
+//         cancha: canchaRow ? canchaRow.nombre : "TODAS",
+//         forma_pago: forma !== "TODAS" ? forma : "TODAS",
+//         estado_pago: estado !== "TODAS" ? estado : "TODAS",
+//       },
+//       totales: {
+//         monto_cancha: totalMontoCancha,
+//         monto_sena: totalMontoSena,
+//         monto_deuda: totalDeuda,
+//         total: totalMontoCancha + totalMontoSena,
+//       },
+//     };
+//     if (page) {
+//       resp.page = page;
+//       resp.pages = Math.max(1, Math.ceil(total / take));
+//     }
+
+//     return res.json(resp);
+//   } catch (err) {
+//     console.error("recaudacionFormasDePago error:", err);
+//     return res.status(500).json({ ok: false, msg: "Consulte con el administrador" });
+//   }
+// }
+//================================================ RECAUDACION -> FORMAS DE PAGO (día + filtros) ===========
 async function recaudacionFormasDePago(req, res) {
   try {
-    const { fecha, cancha } = req.params;
+    // 1) Params + decode + trim
+    let { fecha, cancha, forma_pago, estado_pago } = req.params;
+    const sFecha = String(fecha || "").trim();
 
-    // normalizo fecha (YYYY-MM-DD) -> 00:00Z
-    const sFecha = String(fecha).trim();
+    // Decodificar por si llegan en URL-encoding (cancha%20medio, SE%C3%91A, etc.)
+    cancha = decodeURIComponent(String(cancha || "")).trim();
+    forma_pago = decodeURIComponent(String(forma_pago || "")).trim();
+    estado_pago = decodeURIComponent(String(estado_pago || "")).trim();
+
+    // 2) Validar fecha YYYY-MM-DD → construir 00:00Z
     const YMD = /^\d{4}-\d{2}-\d{2}$/;
     if (!YMD.test(sFecha)) {
-      return res
-        .status(400)
-        .json({ ok: false, msg: "Fecha inválida (YYYY-MM-DD)" });
+      return res.status(400).json({ ok: false, msg: "Fecha inválida (YYYY-MM-DD)" });
     }
     const [y, m, d] = sFecha.split("-").map(Number);
     const dayUTC = new Date(Date.UTC(y, m - 1, d));
 
-    // cancha por nombre
-    const canchaRow = await prisma.cancha.findUnique({
-      where: { nombre: cancha },
-    });
-    if (!canchaRow)
-      return res.status(400).json({ ok: false, msg: "No existe cancha" });
+    // 3) Resolver cancha (si NO es TODAS). Solo activas, case-insensitive
+    let canchaRow = null;
+    if (cancha && cancha.toUpperCase() !== "TODAS") {
+      canchaRow = await prisma.cancha.findFirst({
+        where: { estado: "activo", nombre: { equals: cancha, mode: "insensitive" } },
+        select: { id: true, nombre: true },
+      });
+      if (!canchaRow) {
+        return res.status(404).json({ ok: false, msg: "Cancha no encontrada (activa)" });
+      }
+    }
 
-    // normalizo forma_pago y estado_pago (permito "SENA" -> "SEÑA", y "TODAS") 
-    const norm = (s = "") => String(s).trim().toUpperCase();
-    let forma = norm(req.params.forma_pago || "TODAS");
-    let estadoPago = norm(req.params.estado_pago || "TODAS");
+    // 4) Normalizar forma/estado (tolerante a tildes). TODAS = no filtra
+    const norm = (s = "") =>
+      String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    let forma = norm(forma_pago || "TODAS");
+    let estado = norm(estado_pago || "TODAS");
     if (forma === "SENA") forma = "SEÑA";
+    if (estado === "SENA") estado = "SEÑA";
 
-    // paginación
+    // 5) Paginación
     const q = req.query || {};
     const limit = Number(q.limite ?? q.limit ?? 10);
-    const page = q.page ? Math.max(1, Number(q.page)) : null;
+    const page  = q.page ? Math.max(1, Number(q.page)) : null;
     const desde = page ? (page - 1) * limit : Number(q.desde ?? 0);
-    const skip = Math.max(0, desde);
-    const take = Math.max(1, Math.min(100, limit));
+    const skip  = Math.max(0, desde);
+    const take  = Math.max(1, Math.min(100, limit));
 
-    // filtro base: solo activas, día exacto, cancha
-    const whereBase = {
+    // 6) Filtro base (día exacto, solo activas) + filtros opcionales
+    const where = {
       estado: "activo",
-      canchaId: canchaRow.id,
       fechaCopia: dayUTC,
+      ...(canchaRow ? { canchaId: canchaRow.id } : {}),
+      ...(forma !== "TODAS" ? { forma_pago: { equals: forma, mode: "insensitive" } } : {}),
+      ...(estado !== "TODAS" ? { estado_pago: { equals: estado, mode: "insensitive" } } : {}),
     };
 
-    // agrego forma_pago si no es TODAS
-    const withForma =
-      forma && forma !== "TODAS"
-        ? { ...whereBase, forma_pago: forma }
-        : whereBase;
+    // 7) Precio base para deuda (si hay cancha definida)
+    let precioBase = 0;
+    if (canchaRow) {
+      const conf = await prisma.configuracion.findFirst({
+        where: { canchaId: canchaRow.id },
+        orderBy: { createdAt: "desc" },
+      });
+      precioBase = Number(conf?.monto_cancha ?? 0);
+    }
 
-    // agrego estado_pago si no es TODAS
-    const where =
-      estadoPago && estadoPago !== "TODAS"
-        ? { ...withForma, estado_pago: estadoPago }
-        : withForma;
-
-    // precio base de la cancha (para deuda SEÑA/IMPAGO)
-    const conf = await prisma.configuracion.findUnique({
-      where: { canchaId: canchaRow.id },
-    });
-    const precioBase = Number(conf?.monto_cancha || 0);
-
-    // totales globales del día/cancha/filtros
+    // 8) Totales globales + total items
     const [{ _sum }, total] = await Promise.all([
-      //--------------------------------------------------------------->dudas
-      prisma.reserva.aggregate({
-        where,
-        _sum: { monto_cancha: true, monto_sena: true },
-      }),
+      prisma.reserva.aggregate({ where, _sum: { monto_cancha: true, monto_sena: true } }),
       prisma.reserva.count({ where }),
     ]);
     const totalMontoCancha = Number(_sum.monto_cancha || 0);
-    const totalMontoSena = Number(_sum.monto_sena || 0);
+    const totalMontoSena   = Number(_sum.monto_sena   || 0);
 
-    // deuda global (por estado_pago de cada fila)
-    const rowsForDebt = await prisma.reserva.findMany({
-      where,
-      select: { estado_pago: true, monto_sena: true },
-    });
-    const totalDeuda = rowsForDebt.reduce((acc, r) => {
-      if (r.estado_pago === "TOTAL") return acc;
-      if (r.estado_pago === "SEÑA")
-        return acc + Math.max(0, precioBase - Number(r.monto_sena || 0));
-      return acc + precioBase; // IMPAGO
-    }, 0);
+    // Deuda global (si hay cancha; si no, no se puede calcular sin precio base)
+    let totalDeuda = 0;
+    if (canchaRow) {
+      const rowsForDebt = await prisma.reserva.findMany({
+        where,
+        select: { estado_pago: true, monto_sena: true },
+      });
+      totalDeuda = rowsForDebt.reduce((acc, r) => {
+        if (r.estado_pago === "TOTAL") return acc;
+        if (r.estado_pago === "SEÑA") return acc + Math.max(0, precioBase - Number(r.monto_sena || 0));
+        return acc + precioBase; // IMPAGO
+      }, 0);
+    }
 
-    // página de resultados (incluye estado_pago)
+    // 9) Página de resultados (con relaciones para mostrar nombres en el front)
     const rows = await prisma.reserva.findMany({
       where,
-      orderBy: [{ hora: "asc" }, { id: "asc" }],
+      orderBy: [{ fechaCopia: "asc" }, { hora: "asc" }, { id: "asc" }],
       skip,
       take,
+      include: {
+        cancha:  { select: { nombre: true } },
+        cliente: { select: { nombre: true, apellido: true, dni: true } },
+        usuario: { select: { user: true } },
+      },
     });
 
-    // salida: montos numéricos, fechas 03:00Z, deuda por fila, y estado_pago presente
     const reservas = rows.map((r) => {
       const consolidado = Number(r.monto_cancha || 0);
-      const senia = Number(r.monto_sena || 0);
+      const senia       = Number(r.monto_sena || 0);
       let deuda = 0;
-      if (r.estado_pago === "SEÑA") deuda = Math.max(0, precioBase - senia);
-      else if (r.estado_pago === "IMPAGO") deuda = precioBase;
-
+      if (canchaRow) {
+        if (r.estado_pago === "SEÑA")   deuda = Math.max(0, precioBase - senia);
+        else if (r.estado_pago === "IMPAGO") deuda = precioBase;
+      }
       return {
-        ...r, // incluye r.estado_pago
+        ...r,
         monto_cancha: consolidado,
-        monto_sena: senia,
-        monto_deuda: deuda,
-        fecha: anchorDateObj(r.fechaCopia),
-        start: anchorDateObj(r.fechaCopia),
-        end: anchorDateObj(r.fechaCopia),
-        fechaCopia: anchorDateObj(r.fechaCopia),
+        monto_sena:   senia,
+        monto_deuda:  deuda,
+        fecha:       anchorDateObj(r.fechaCopia),
+        start:       anchorDateObj(r.fechaCopia),
+        end:         anchorDateObj(r.fechaCopia),
+        fechaCopia:  anchorDateObj(r.fechaCopia),
       };
     });
 
+    // 10) Respuesta alineada al front (FormaPago)
     const resp = {
       ok: true,
       total,
-      reservas,
+      reservas,         // <-- FormaPago usa este arreglo
       limite: take,
-      desde: skip,
+      desde:  skip,
       filtro: {
         fecha: sFecha,
-        cancha: canchaRow.nombre,
-        forma_pago: forma && forma !== "TODAS" ? forma : "TODAS",
-        estado_pago:
-          estadoPago && estadoPago !== "TODAS" ? estadoPago : "TODAS",
+        cancha: canchaRow ? canchaRow.nombre : "TODAS",
+        forma_pago:  forma  !== "TODAS" ? forma  : "TODAS",
+        estado_pago: estado !== "TODAS" ? estado : "TODAS",
       },
       totales: {
         monto_cancha: totalMontoCancha,
-        monto_sena: totalMontoSena,
-        monto_deuda: totalDeuda,
-        total: totalMontoCancha + totalMontoSena,
+        monto_sena:   totalMontoSena,
+        monto_deuda:  totalDeuda,
+        total:        totalMontoCancha + totalMontoSena,
       },
     };
-
     if (page) {
-      resp.page = page;
+      resp.page  = page;
       resp.pages = Math.max(1, Math.ceil(total / take));
     }
+
     return res.json(resp);
   } catch (err) {
     console.error("recaudacionFormasDePago error:", err);
-    return res
-      .status(500)
-      .json({ ok: false, msg: "Consulte con el administrador" });
+    return res.status(500).json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
+
 //================================================RESERVAS_ELIMINADAS====================================
 async function reservasEliminadasRango(req, res) {
   try {
