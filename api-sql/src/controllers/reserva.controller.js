@@ -974,39 +974,45 @@ async function estadoReservasRango(req, res) {
     const { estado_pago, fechaIni, fechaFin } = req.params;
 
     // 0) Validaciones básicas
-    const ESTADOS = new Set(['TOTAL', 'SEÑA', 'IMPAGO']);
-    const estadoSel = String(estado_pago || '').toUpperCase().trim();
+    const ESTADOS = new Set(["TOTAL", "SEÑA", "IMPAGO"]);
+    const estadoSel = String(estado_pago || "")
+      .toUpperCase()
+      .trim();
     if (!ESTADOS.has(estadoSel)) {
-      return res.status(400).json({ ok: false, msg: 'estado_pago inválido' });
+      return res.status(400).json({ ok: false, msg: "estado_pago inválido" });
     }
 
-    const sIni = String(fechaIni || '').trim();
-    const sFin = String(fechaFin || '').trim();
+    const sIni = String(fechaIni || "").trim();
+    const sFin = String(fechaFin || "").trim();
     const YMD = /^\d{4}-\d{2}-\d{2}$/;
     if (!YMD.test(sIni) || !YMD.test(sFin)) {
-      return res.status(400).json({ ok: false, msg: 'Rango de fechas inválido' });
+      return res
+        .status(400)
+        .json({ ok: false, msg: "Rango de fechas inválido" });
     }
 
     // Fechas a 00:00 UTC (evita corrimientos)
-    const [y1, m1, d1] = sIni.split('-').map(Number);
-    const [y2, m2, d2] = sFin.split('-').map(Number);
+    const [y1, m1, d1] = sIni.split("-").map(Number);
+    const [y2, m2, d2] = sFin.split("-").map(Number);
     const ini = new Date(Date.UTC(y1, m1 - 1, d1));
     const fin = new Date(Date.UTC(y2, m2 - 1, d2));
     if (isNaN(ini) || isNaN(fin) || ini > fin) {
-      return res.status(400).json({ ok: false, msg: 'Rango de fechas inválido' });
+      return res
+        .status(400)
+        .json({ ok: false, msg: "Rango de fechas inválido" });
     }
 
     // 1) Paginación
     const q = req.query || {};
     const limit = Number(q.limite ?? q.limit ?? 10);
-    const page  = q.page ? Math.max(1, Number(q.page)) : null;
+    const page = q.page ? Math.max(1, Number(q.page)) : null;
     const desde = page ? (page - 1) * limit : Number(q.desde ?? 0);
-    const skip  = Math.max(0, desde);
-    const take  = Math.max(1, Math.min(100, limit));
+    const skip = Math.max(0, desde);
+    const take = Math.max(1, Math.min(100, limit));
 
     // 2) Filtro principal
     const where = {
-      estado: 'activo',
+      estado: "activo",
       estado_pago: estadoSel,
       fechaCopia: { gte: ini, lte: fin },
     };
@@ -1016,11 +1022,11 @@ async function estadoReservasRango(req, res) {
       prisma.reserva.count({ where }),
       prisma.reserva.findMany({
         where,
-        orderBy: [{ fechaCopia: 'asc' }, { hora: 'asc' }, { id: 'asc' }],
+        orderBy: [{ fechaCopia: "asc" }, { hora: "asc" }, { id: "asc" }],
         skip,
         take,
         include: {
-          cancha:  { select: { id: true, nombre: true } },
+          cancha: { select: { id: true, nombre: true } },
           cliente: { select: { nombre: true, apellido: true, dni: true } },
           usuario: { select: { user: true } },
         },
@@ -1029,7 +1035,9 @@ async function estadoReservasRango(req, res) {
 
     // 4) Precio base por cancha (para IMPAGO y para deuda de SEÑA cuando corresponda)
     //    Pre-cargamos la última configuración por canchaId presente en la página.
-    const canchaIds = Array.from(new Set(rows.map(r => r.canchaId).filter(Boolean)));
+    const canchaIds = Array.from(
+      new Set(rows.map((r) => r.canchaId).filter(Boolean))
+    );
     let confMap = new Map();
     if (canchaIds.length > 0) {
       // Traigo la última conf de cada canchaId (createdAt desc)
@@ -1037,10 +1045,12 @@ async function estadoReservasRango(req, res) {
         canchaIds.map(async (cid) => {
           const c = await prisma.configuracion.findFirst({
             where: { canchaId: cid },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             select: { canchaId: true, monto_cancha: true },
           });
-          return c ? { canchaId: c.canchaId, precioBase: Number(c.monto_cancha || 0) } : null;
+          return c
+            ? { canchaId: c.canchaId, precioBase: Number(c.monto_cancha || 0) }
+            : null;
         })
       );
       confs.filter(Boolean).forEach(({ canchaId, precioBase }) => {
@@ -1051,32 +1061,32 @@ async function estadoReservasRango(req, res) {
     // 5) Formateo final para el front
     const reservas = rows.map((r) => {
       const consolidado = Number(r.monto_cancha || 0);
-      const senia       = Number(r.monto_sena   || 0);
-      const precioBase  = confMap.get(Number(r.canchaId)) || 0;
+      const senia = Number(r.monto_sena || 0);
+      const precioBase = confMap.get(Number(r.canchaId)) || 0;
 
       // "monto a mostrar" según el estado seleccionado
       let montoMostrar = 0;
-      if (estadoSel === 'TOTAL') montoMostrar = consolidado;
-      else if (estadoSel === 'SEÑA') montoMostrar = senia;
-      else if (estadoSel === 'IMPAGO') montoMostrar = precioBase;
+      if (estadoSel === "TOTAL") montoMostrar = consolidado;
+      else if (estadoSel === "SEÑA") montoMostrar = senia;
+      else if (estadoSel === "IMPAGO") montoMostrar = precioBase;
 
       return {
         // campos originales + relaciones (ya traen nombres)
         ...r,
         // montos normalizados
         monto_cancha: consolidado,
-        monto_sena:   senia,
+        monto_sena: senia,
         // helpers de UI compatibles
-        fecha:      anchorDateObj(r.fechaCopia),
-        start:      anchorDateObj(r.fechaCopia),
-        end:        anchorDateObj(r.fechaCopia),
+        fecha: anchorDateObj(r.fechaCopia),
+        start: anchorDateObj(r.fechaCopia),
+        end: anchorDateObj(r.fechaCopia),
         fechaCopia: anchorDateObj(r.fechaCopia),
 
         // campos "planos" cómodos para la tabla (evita navegar objetos en el front)
-        canchaNombre:  r.cancha?.nombre ?? '',
-        clienteNombre: r.cliente?.nombre ?? '',
-        clienteApellido: r.cliente?.apellido ?? '',
-        clienteDni:    r.cliente?.dni ?? '',
+        canchaNombre: r.cancha?.nombre ?? "",
+        clienteNombre: r.cliente?.nombre ?? "",
+        clienteApellido: r.cliente?.apellido ?? "",
+        clienteDni: r.cliente?.dni ?? "",
 
         // este valor te sirve para columna "Monto" sin condicionales en el front
         monto_mostrar: montoMostrar,
@@ -1087,19 +1097,21 @@ async function estadoReservasRango(req, res) {
     const resp = {
       ok: true,
       total,
-      reservas,      // el front debe leer data.reservas
+      reservas, // el front debe leer data.reservas
       limite: take,
-      desde:  skip,
+      desde: skip,
     };
     if (page) {
-      resp.page  = page;
+      resp.page = page;
       resp.pages = Math.max(1, Math.ceil(total / take));
     }
 
     return res.json(resp);
   } catch (err) {
-    console.error('estadoReservasRango error:', err);
-    return res.status(500).json({ ok: false, msg: 'Consulte con el administrador' });
+    console.error("estadoReservasRango error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
 
@@ -1547,7 +1559,6 @@ async function reservasEliminadasRango(req, res) {
       .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
-
 
 module.exports = {
   crearReserva,
