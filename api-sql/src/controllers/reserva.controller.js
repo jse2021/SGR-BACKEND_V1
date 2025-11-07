@@ -152,7 +152,7 @@ async function crearReserva(req, res) {
     if (estadoPagoRequest === "TOTAL" && Number.isFinite(bodyMontoCancha)) {
       importeFinal = bodyMontoCancha;
     } else if (estadoPagoRequest === "SEÑA" && Number.isFinite(bodyMontoSena)) {
-      importeFinal = bodyMontoSena;
+      importeFinal = bodyMontoSena;    
     }
 
     // 4) Normalización de fecha + hora (seguro para ISO o YYYY-MM-DD)
