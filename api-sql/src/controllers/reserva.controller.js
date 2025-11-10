@@ -31,6 +31,24 @@ function parseFrontDay({ fecha, fechaCopia }) {
   throw new Error("Falta fecha o fechaCopia");
 }
 
+// Convierte "25.000", "25,000", "25.000,50" -> número JS válido
+function parseMonto(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+  if (typeof value !== "string") return NaN;
+
+  // Trim y normalización simple AR/ES:
+  // - quita separadores de miles "."
+  // - convierte coma decimal a punto
+  const normalized = value
+    .trim()
+    .replace(/\./g, "")   // "25.000" -> "25000"
+    .replace(/,/g, ".");  // "25000,50" -> "25000.50"
+
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+
 //====================================endpoint que usa el axios interno===========================
 async function obtenerMontoPorEstado(req, res) {
   try {
@@ -144,16 +162,8 @@ async function crearReserva(req, res) {
         .json({ ok: false, msg: "No existe cancha (activa)" });
     }
 
-    // 3.1) Si el front ya envía montos, usalos y evitá axios/fallback
-    const bodyMontoCancha = Number(req.body?.monto_cancha);
-    const bodyMontoSena = Number(req.body?.monto_sena);
-
+    // 3.1) Ignoramos montos del body: la fuente de verdad es configuracion
     let importeFinal = null;
-    if (estadoPagoRequest === "TOTAL" && Number.isFinite(bodyMontoCancha)) {
-      importeFinal = bodyMontoCancha;
-    } else if (estadoPagoRequest === "SEÑA" && Number.isFinite(bodyMontoSena)) {
-      importeFinal = bodyMontoSena;    
-    }
 
     // 4) Normalización de fecha + hora (seguro para ISO o YYYY-MM-DD)
     const fechaDiaUTC = dateOnlyUTC(fechaRequest || fechaCopiaRequest);
@@ -171,40 +181,63 @@ async function crearReserva(req, res) {
     const reservasDelDia = reservasRegistradas.filter(
       (r) => r.hora === horaStr
     );
+    // 6) Fallback de monto directo desde configuracion (sin axios)
+    {
+      const conf = await prisma.configuracion.findUnique({
+        where: { canchaId: canchaRow.id },
+        select: { monto_cancha: true, monto_sena: true }
+      });
 
-    // 6) Llamado interno para monto (con x-token); fallback si falla
-    if (importeFinal === null) {
-      const token = req.header("x-token") || "";
-      const API_BASE = process.env.API_ORIGIN_BASE || "http://localhost:5000";
-      try {
-        const { data } = await axios.post(
-          `${API_BASE}/reserva/obtener-monto`,
-          { cancha: canchaRequest, estado_pago: estadoPagoRequest },
-          { headers: { "x-token": token } }
-        );
-        if (!data.ok) throw new Error("monto-no-disponible");
-        importeFinal = Number(data.monto || 0);
-      } catch {
-        const confFallback = await prisma.configuracion.findUnique({
-          where: { canchaId: canchaRow.id },
+      if (!conf) {
+        return res.status(400).json({
+          ok: false,
+          msg: "La cancha no tiene configuración de precios",
         });
-        if (!confFallback) {
-          return res.status(400).json({
-            ok: false,
-            msg: "La cancha no tiene configuración de precios",
-          });
-        }
-        if (estadoPagoRequest === "TOTAL")
-          importeFinal = Number(confFallback.monto_cancha || 0);
-        else if (estadoPagoRequest === "SEÑA")
-          importeFinal = Number(confFallback.monto_sena || 0);
-        else importeFinal = 0;
+      }
+
+      if (estadoPagoRequest === "TOTAL") {
+        importeFinal = Number(conf.monto_cancha || 0);
+      } else if (estadoPagoRequest === "SEÑA") {
+        importeFinal = Number(conf.monto_sena || 0);
+      } else {
+        // IMPAGO u otros
+        importeFinal = 0;
       }
     }
 
+    // // 6) Llamado interno para monto (con x-token); fallback si falla
+    // if (importeFinal === null) {
+    //   const token = req.header("x-token") || "";
+    //   const API_BASE = process.env.API_ORIGIN_BASE || "http://localhost:5000";
+    //   try {
+    //     const { data } = await axios.post(
+    //       `${API_BASE}/reserva/obtener-monto`,
+    //       { cancha: canchaRequest, estado_pago: estadoPagoRequest },
+    //       { headers: { "x-token": token } }
+    //     );
+    //     if (!data.ok) throw new Error("monto-no-disponible");
+    //     importeFinal = Number(data.monto || 0);
+    //   } catch {
+    //     const confFallback = await prisma.configuracion.findUnique({
+    //       where: { canchaId: canchaRow.id },
+    //     });
+    //     if (!confFallback) {
+    //       return res.status(400).json({
+    //         ok: false,
+    //         msg: "La cancha no tiene configuración de precios",
+    //       });
+    //     }
+    //     if (estadoPagoRequest === "TOTAL")
+    //       importeFinal = Number(confFallback.monto_cancha || 0);
+    //     else if (estadoPagoRequest === "SEÑA")
+    //       importeFinal = Number(confFallback.monto_sena || 0);
+    //     else importeFinal = 0;
+    //   }
+    // }
+
     // 7) Montos automáticos
     const monto_cancha = estadoPagoRequest === "TOTAL" ? importeFinal : 0;
-    const monto_sena = estadoPagoRequest === "SEÑA" ? importeFinal : 0;
+    const monto_sena   = estadoPagoRequest === "SEÑA"  ? importeFinal : 0;
 
     // 8) Usuario (texto + id)
     const usuario = uid
@@ -315,6 +348,12 @@ async function crearReserva(req, res) {
       ...creada,
       monto_cancha: Number(creada.monto_cancha || 0),
       monto_sena: Number(creada.monto_sena || 0),
+        // helper opcional para UI:
+      monto: creada.estado_pago === "TOTAL"
+        ? Number(creada.monto_cancha || 0)
+        : creada.estado_pago === "SEÑA"
+        ? Number(creada.monto_sena || 0)
+        : 0,
       fecha: anchorDateObj(creada.fechaCopia),
       start: anchorDateObj(creada.fechaCopia),
       end: anchorDateObj(creada.fechaCopia),
@@ -479,57 +518,33 @@ async function actualizarReserva(req, res) {
     // 5) Hora destino (si no mandan, mantener)
     const nuevaHora = (nueva.hora || actual.hora || "00:00").padStart(5, "0");
 
-    // 6) Si cambian cancha u estado_pago -> recalcular montos
+    // 6) Si cambian cancha u estado_pago -> recalcular montos (SIEMPRE desde configuracion)
     let estadoPago = nueva.estado_pago ?? actual.estado_pago;
     let monto_cancha = actual.monto_cancha;
-    let monto_sena = actual.monto_sena;
+    let monto_sena   = actual.monto_sena;
 
-    if (
-      (nueva.estado_pago && nueva.cancha) ||
-      (nueva.estado_pago && !nueva.cancha) ||
-      (!nueva.estado_pago && nueva.cancha)
-    ) {
-      try {
-        const token = req.header("x-token") || "";
-        const API_BASE = process.env.API_ORIGIN_BASE || "http://localhost:5000";
-        const { data } = await axios.post(
-          `${API_BASE}/reserva/obtener-monto`,
-          { estado_pago: estadoPago, cancha: nueva.cancha },
-          { headers: { "x-token": token } }
-        );
+    if (nueva.estado_pago || nueva.cancha) {
+      // Resolver configuración actual de la cancha destino
+      const conf = await prisma.configuracion.findUnique({
+        where: { canchaId: destCancha.id },
+        select: { monto_cancha: true, monto_sena: true }
+      });
 
-        if (!data.ok) throw new Error("Monto no disponible");
-        const monto = Number(data.monto || 0);
+      const precioTotal = Number(conf?.monto_cancha || 0);
+      const precioSena  = Number(conf?.monto_sena || 0);
 
-        if (estadoPago === "TOTAL") {
-          monto_cancha = monto;
-          monto_sena = 0;
-        } else if (estadoPago === "SEÑA") {
-          monto_sena = monto;
-          monto_cancha = 0;
-        } else {
-          monto_cancha = 0;
-          monto_sena = 0;
-        }
-      } catch {
-        // fallback: leer configuración directo
-        const conf = await prisma.configuracion.findUnique({
-          where: { canchaId: destCancha.id },
-        });
-        const mC = Number(conf?.monto_cancha || 0);
-        const mS = Number(conf?.monto_sena || 0);
-        if (estadoPago === "TOTAL") {
-          monto_cancha = mC;
-          monto_sena = 0;
-        } else if (estadoPago === "SEÑA") {
-          monto_sena = mS;
-          monto_cancha = 0;
-        } else {
-          monto_cancha = 0;
-          monto_sena = 0;
-        }
+      if (estadoPago === "TOTAL") {
+        monto_cancha = precioTotal;
+        monto_sena = 0;
+      } else if (estadoPago === "SEÑA") {
+        monto_sena = precioSena;
+        monto_cancha = 0;
+      } else {
+        monto_cancha = 0;
+        monto_sena = 0;
       }
     }
+
 
     // 7) Chequeo de colisión SOLO si cambia la combinación (cancha/hora)
     const cambiaCancha = destCancha.id !== actual.canchaId;
@@ -669,6 +684,11 @@ async function actualizarReserva(req, res) {
       ...updated,
       monto_cancha: Number(updated.monto_cancha || 0),
       monto_sena: Number(updated.monto_sena || 0),
+      monto: updated.estado_pago === "TOTAL"
+        ? Number(updated.monto_cancha || 0)
+        : updated.estado_pago === "SEÑA"
+        ? Number(updated.monto_sena || 0)
+        : 0,
       fecha: anchorDateObj(updated.fechaCopia),
       start: anchorDateObj(updated.fechaCopia),
       end: anchorDateObj(updated.fechaCopia),
