@@ -41,13 +41,12 @@ function parseMonto(value) {
   // - convierte coma decimal a punto
   const normalized = value
     .trim()
-    .replace(/\./g, "")   // "25.000" -> "25000"
-    .replace(/,/g, ".");  // "25000,50" -> "25000.50"
+    .replace(/\./g, "") // "25.000" -> "25000"
+    .replace(/,/g, "."); // "25000,50" -> "25000.50"
 
   const n = Number(normalized);
   return Number.isFinite(n) ? n : NaN;
 }
-
 
 //====================================endpoint que usa el axios interno===========================
 async function obtenerMontoPorEstado(req, res) {
@@ -185,7 +184,7 @@ async function crearReserva(req, res) {
     {
       const conf = await prisma.configuracion.findUnique({
         where: { canchaId: canchaRow.id },
-        select: { monto_cancha: true, monto_sena: true }
+        select: { monto_cancha: true, monto_sena: true },
       });
 
       if (!conf) {
@@ -237,7 +236,7 @@ async function crearReserva(req, res) {
 
     // 7) Montos automáticos
     const monto_cancha = estadoPagoRequest === "TOTAL" ? importeFinal : 0;
-    const monto_sena   = estadoPagoRequest === "SEÑA"  ? importeFinal : 0;
+    const monto_sena = estadoPagoRequest === "SEÑA" ? importeFinal : 0;
 
     // 8) Usuario (texto + id)
     const usuario = uid
@@ -348,12 +347,13 @@ async function crearReserva(req, res) {
       ...creada,
       monto_cancha: Number(creada.monto_cancha || 0),
       monto_sena: Number(creada.monto_sena || 0),
-        // helper opcional para UI:
-      monto: creada.estado_pago === "TOTAL"
-        ? Number(creada.monto_cancha || 0)
-        : creada.estado_pago === "SEÑA"
-        ? Number(creada.monto_sena || 0)
-        : 0,
+      // helper opcional para UI:
+      monto:
+        creada.estado_pago === "TOTAL"
+          ? Number(creada.monto_cancha || 0)
+          : creada.estado_pago === "SEÑA"
+          ? Number(creada.monto_sena || 0)
+          : 0,
       fecha: anchorDateObj(creada.fechaCopia),
       start: anchorDateObj(creada.fechaCopia),
       end: anchorDateObj(creada.fechaCopia),
@@ -521,17 +521,17 @@ async function actualizarReserva(req, res) {
     // 6) Si cambian cancha u estado_pago -> recalcular montos (SIEMPRE desde configuracion)
     let estadoPago = nueva.estado_pago ?? actual.estado_pago;
     let monto_cancha = actual.monto_cancha;
-    let monto_sena   = actual.monto_sena;
+    let monto_sena = actual.monto_sena;
 
     if (nueva.estado_pago || nueva.cancha) {
       // Resolver configuración actual de la cancha destino
       const conf = await prisma.configuracion.findUnique({
         where: { canchaId: destCancha.id },
-        select: { monto_cancha: true, monto_sena: true }
+        select: { monto_cancha: true, monto_sena: true },
       });
 
       const precioTotal = Number(conf?.monto_cancha || 0);
-      const precioSena  = Number(conf?.monto_sena || 0);
+      const precioSena = Number(conf?.monto_sena || 0);
 
       if (estadoPago === "TOTAL") {
         monto_cancha = precioTotal;
@@ -544,7 +544,6 @@ async function actualizarReserva(req, res) {
         monto_sena = 0;
       }
     }
-
 
     // 7) Chequeo de colisión SOLO si cambia la combinación (cancha/hora)
     const cambiaCancha = destCancha.id !== actual.canchaId;
@@ -684,11 +683,12 @@ async function actualizarReserva(req, res) {
       ...updated,
       monto_cancha: Number(updated.monto_cancha || 0),
       monto_sena: Number(updated.monto_sena || 0),
-      monto: updated.estado_pago === "TOTAL"
-        ? Number(updated.monto_cancha || 0)
-        : updated.estado_pago === "SEÑA"
-        ? Number(updated.monto_sena || 0)
-        : 0,
+      monto:
+        updated.estado_pago === "TOTAL"
+          ? Number(updated.monto_cancha || 0)
+          : updated.estado_pago === "SEÑA"
+          ? Number(updated.monto_sena || 0)
+          : 0,
       fecha: anchorDateObj(updated.fechaCopia),
       start: anchorDateObj(updated.fechaCopia),
       end: anchorDateObj(updated.fechaCopia),
@@ -1138,12 +1138,15 @@ async function estadoReservasRango(req, res) {
 //================================================RECAUDACION-->RANGO_FECHA_CANCHA====================================
 async function estadoRecaudacion(req, res) {
   try {
-    const { cancha, fechaIni, fechaFin } = req.params;
+    let { cancha, fechaIni, fechaFin } = req.params;
 
-    // 0) Validaciones de fechas (trim + formato YYYY-MM-DD + construir UTC 00:00)
-    const sIni = String(fechaIni).trim();
-    const sFin = String(fechaFin).trim();
+    // 0) Normalizaciones
+    cancha = decodeURIComponent(String(cancha || "")).trim();
+
+    // Fechas: YYYY-MM-DD → 00:00Z (evita corrimientos)
     const YMD = /^\d{4}-\d{2}-\d{2}$/;
+    const sIni = String(fechaIni || "").trim();
+    const sFin = String(fechaFin || "").trim();
     if (!YMD.test(sIni) || !YMD.test(sFin)) {
       return res
         .status(400)
@@ -1151,48 +1154,54 @@ async function estadoRecaudacion(req, res) {
     }
     const [y1, m1, d1] = sIni.split("-").map(Number);
     const [y2, m2, d2] = sFin.split("-").map(Number);
-
     const ini = new Date(Date.UTC(y1, m1 - 1, d1)); // 00:00Z
     const fin = new Date(Date.UTC(y2, m2 - 1, d2)); // 00:00Z
-
     if (isNaN(ini) || isNaN(fin) || ini > fin) {
       return res
         .status(400)
         .json({ ok: false, msg: "Rango de fechas inválido" });
     }
 
-    // 1) Cancha por NOMBRE
-    const canchaRow = await prisma.cancha.findUnique({
-      where: { nombre: cancha },
+    // 1) Resolver cancha por NOMBRE (solo ACTIVA, case-insensitive)
+    const canchaRow = await prisma.cancha.findFirst({
+      where: {
+        estado: "activo",
+        nombre: { equals: cancha, mode: "insensitive" },
+      },
+      select: { id: true, nombre: true },
     });
     if (!canchaRow) {
-      return res.status(400).json({ ok: false, msg: "No existe cancha" });
+      return res
+        .status(404)
+        .json({ ok: false, msg: "Cancha no encontrada (activa)" });
     }
 
-    // 2) Paginación (estilo Mongo: ?desde & ?limite) + soporte page/limit
+    // 2) Paginación (?page & ?limit o ?desde & ?limite)
     const q = req.query || {};
-    const limit = Number(q.limite ?? q.limit ?? 10);
-    const page = q.page ? Math.max(1, Number(q.page)) : null;
-    const desde = page ? (page - 1) * limit : Number(q.desde ?? 0);
+    const limit = Number(q.limit ?? q.limite ?? 10);
+    const pageQ = q.page ? Math.max(1, Number(q.page)) : null;
+    const desde = pageQ ? (pageQ - 1) * limit : Number(q.desde ?? 0);
     const skip = Math.max(0, desde);
-    const take = Math.max(1, Math.min(100, limit)); // tope sano
+    const take = Math.max(1, Math.min(100, limit));
+    const page = pageQ ?? Math.floor(skip / take) + 1;
 
-    // 2.5) Traigo la configuración (para conocer el precio base de la cancha)
-    const conf = await prisma.configuracion.findUnique({
+    // 3) Precio base (última configuración de la cancha)
+    const conf = await prisma.configuracion.findFirst({
       where: { canchaId: canchaRow.id },
+      orderBy: { createdAt: "desc" },
+      select: { monto_cancha: true, monto_sena: true },
     });
-    const precioBase = Number(conf?.monto_cancha || 0);
+    const precioBase = Number(conf?.monto_cancha ?? 0);
 
-    // 3) Filtro base: SOLO activas + día dentro del rango + cancha
+    // 4) Filtro base
     const where = {
       estado: "activo",
       canchaId: canchaRow.id,
       fechaCopia: { gte: ini, lte: fin },
     };
 
-    // 4) Totales GLOBALes del rango (no de la página)
-    const [{ _sum }, total] = await Promise.all([
-      //-->calcula la suma total de monto_cancha y monto_sena para todo lo que cumple where
+    // 5) Totales globales (independientes de la página)
+    const [{ _sum }, totalItems] = await Promise.all([
       prisma.reserva.aggregate({
         where,
         _sum: { monto_cancha: true, monto_sena: true },
@@ -1202,30 +1211,36 @@ async function estadoRecaudacion(req, res) {
 
     const totalMontoCancha = Number(_sum.monto_cancha || 0);
     const totalMontoSena = Number(_sum.monto_sena || 0);
-    // const totalCobrado     = totalMontoCancha + totalMontoSena;
 
-    // Deuda global = suma por reserva aplicando la regla TOTAL/SEÑA/IMPAGO
-    const allRowsForDebt = await prisma.reserva.findMany({
+    // deuda global
+    const rowsForDebt = await prisma.reserva.findMany({
       where,
-      select: { estado_pago: true, monto_sena: true }, // sólo lo que necesito
+      select: { estado_pago: true, monto_sena: true },
     });
-    const totalDeuda = allRowsForDebt.reduce((acc, r) => {
-      if (r.estado_pago === "TOTAL") return acc + 0;
+    const totalDeuda = rowsForDebt.reduce((acc, r) => {
+      if (r.estado_pago === "TOTAL") return acc;
       if (r.estado_pago === "SEÑA")
         return acc + Math.max(0, precioBase - Number(r.monto_sena || 0));
-      // IMPAGO u otros
-      return acc + precioBase;
+      return acc + precioBase; // IMPAGO u otros
     }, 0);
 
-    // 5) Página de resultados (orden estable: día -> hora -> id)
+    // 6) Página de resultados (orden estable)
     const rows = await prisma.reserva.findMany({
       where,
       orderBy: [{ fechaCopia: "asc" }, { hora: "asc" }, { id: "asc" }],
       skip,
       take,
+      select: {
+        id: true,
+        fechaCopia: true,
+        hora: true,
+        estado_pago: true,
+        monto_cancha: true,
+        monto_sena: true,
+      },
     });
 
-    // 6) Formato de salida (montos a Number, fechas ancladas a 03:00Z)
+    // 7) Formateo base por reserva + deuda por item
     const reservas = rows.map((r) => {
       const consolidado = Number(r.monto_cancha || 0);
       const senia = Number(r.monto_sena || 0);
@@ -1238,7 +1253,6 @@ async function estadoRecaudacion(req, res) {
         monto_cancha: consolidado,
         monto_sena: senia,
         monto_deuda: deuda,
-
         fecha: anchorDateObj(r.fechaCopia),
         start: anchorDateObj(r.fechaCopia),
         end: anchorDateObj(r.fechaCopia),
@@ -1246,49 +1260,51 @@ async function estadoRecaudacion(req, res) {
       };
     });
 
-    // 6.5) Resumen DIARIO
-    const byDay = new Map(); // clave: 'YYYY-MM-DD' (de r.fechaCopia en UTC)
+    // 8) Resumen diario (clave YYYY-MM-DD). Se entrega también como "resultados"
+    // con el mismo naming que usa tu Recaudacion.jsx
+    const byDay = new Map();
     for (const r of reservas) {
-      const key = new Date(r.fechaCopia).toISOString().slice(0, 10); // YYYY-MM-DD
+      const key = r.fechaCopia.toISOString().slice(0, 10); // YYYY-MM-DD
       const acc = byDay.get(key) || {
-        fecha: anchorDateObj(new Date(key + "T00:00:00Z")),
-        cancha: canchaRow.nombre,
-        total_consolidado: 0,
-        total_senas: 0,
-        total_deuda: 0,
+        Fecha: key,
+        Cancha: canchaRow.nombre,
+        monto_consolidado: 0,
+        senas_consolidadas: 0,
+        monto_deuda: 0,
+        total_reservas: 0,
       };
-      acc.total_consolidado += r.monto_cancha;
-      acc.total_senas += r.monto_sena;
-      acc.total_deuda += r.monto_deuda;
+      acc.monto_consolidado += r.monto_cancha;
+      acc.senas_consolidadas += r.monto_sena;
+      acc.monto_deuda += r.monto_deuda;
+      acc.total_reservas += 1;
       byDay.set(key, acc);
     }
-    const resumenDiario = Array.from(byDay.values()).sort(
-      (a, b) => a.fecha - b.fecha
-    ); // orden por día asc
 
-    // 7) Respuesta final
+    const resumenDiario = Array.from(byDay.values()).sort(
+      (a, b) => new Date(a.Fecha) - new Date(b.Fecha)
+    );
+
+    // 9) Respuesta estándar + alias compatibles con tu front
     const resp = {
       ok: true,
-      total, // cantidad de reservas activas en el rango/cancha
-      reservas, // página actual con monto_deuda
+      total: totalItems,
+      reservas, // detalle por reserva (página actual)
+      resumenDiario, // filas por día (ordenadas)
+      resultados: resumenDiario, // <--- alias para Recaudacion.jsx
+      page,
+      pages: Math.max(1, Math.ceil(totalItems / take)),
       limite: take,
       desde: skip,
       totales: {
-        // totales GLOBALes del rango
         cancha: canchaRow.nombre,
         fechaIni: sIni,
         fechaFin: sFin,
         monto_cancha: totalMontoCancha,
         monto_sena: totalMontoSena,
         monto_deuda: totalDeuda,
-        total: totalMontoCancha + totalMontoSena, // lo efectivamente cobrado
+        total: totalMontoCancha + totalMontoSena,
       },
-      resumenDiario, // filas para la tabla: fecha, cancha, total_consolidado, total_senas, total_deuda
     };
-    if (page) {
-      resp.page = page;
-      resp.pages = Math.max(1, Math.ceil(total / take));
-    }
 
     return res.json(resp);
   } catch (err) {
