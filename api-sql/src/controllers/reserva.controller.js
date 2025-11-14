@@ -1493,90 +1493,96 @@ async function reservasEliminadasRango(req, res) {
   try {
     const { estado_pago, fechaIni, fechaFin } = req.params;
 
-    // 1) normalizo y valido fechas YYYY-MM-DD (rango inclusivo)
+    // 1) Validación y normalización de fechas (YYYY-MM-DD)
     const YMD = /^\d{4}-\d{2}-\d{2}$/;
-    const sIni = String(fechaIni).trim();
-    const sFin = String(fechaFin).trim();
+    const sIni = String(fechaIni || "").trim();
+    const sFin = String(fechaFin || "").trim();
     if (!YMD.test(sIni) || !YMD.test(sFin)) {
-      return res
-        .status(400)
-        .json({ ok: false, msg: "Rango de fechas inválido" });
+      return res.status(400).json({ ok: false, msg: "Rango de fechas inválido" });
     }
     const [y1, m1, d1] = sIni.split("-").map(Number);
     const [y2, m2, d2] = sFin.split("-").map(Number);
-    const ini = new Date(Date.UTC(y1, m1 - 1, d1)); // 00:00Z
-    const fin = new Date(Date.UTC(y2, m2 - 1, d2)); // 00:00Z
+    const ini = new Date(Date.UTC(y1, m1 - 1, d1));
+    const fin = new Date(Date.UTC(y2, m2 - 1, d2));
     if (isNaN(ini) || isNaN(fin) || ini > fin) {
-      return res
-        .status(400)
-        .json({ ok: false, msg: "Rango de fechas inválido" });
+      return res.status(400).json({ ok: false, msg: "Rango de fechas inválido" });
     }
 
-    // 2) paginación (soporta ?page&limit y ?desde&limite)
+    // 2) Paginación
     const q = req.query || {};
-    const limit = Number(q.limit ?? q.limite ?? 10);
+    const limit = Math.max(1, Math.min(100, Number(q.limit ?? q.limite ?? 10)));
     const pageQ = q.page ? Math.max(1, Number(q.page)) : null;
     const desde = pageQ ? (pageQ - 1) * limit : Number(q.desde ?? 0);
     const skip = Math.max(0, desde);
     const page = pageQ ?? Math.floor(skip / limit) + 1;
 
-    // 3) filtro base: inactivas + rango por día
+    // 3) Filtro base
     const where = {
       estado: "inactivo",
       fechaCopia: { gte: ini, lte: fin },
     };
 
-    // 3.1) filtro por estado_pago (TODAS no filtra). Acepto SENA -> SEÑA
-    let estado = String(estado_pago || "TODAS")
-      .trim()
-      .toUpperCase();
+    // 4) Filtro por estado de pago
+    let estado = String(estado_pago || "TODAS").trim().toUpperCase();
     if (estado === "SENA") estado = "SEÑA";
     if (estado !== "TODAS") where.estado_pago = estado;
 
-    // 4) total y página de resultados (orden estable)
+    // 5) Total + registros (traemos cancha + último historial CANCELAR)
     const [totalItems, rows] = await Promise.all([
       prisma.reserva.count({ where }),
       prisma.reserva.findMany({
         where,
-        orderBy: [{ fechaCopia: "asc" }, { hora: "asc" }, { id: "asc" }],
+        orderBy: [{ fechaCopia: "asc" }, { hora: "asc" }],
         skip,
         take: limit,
+        select: {
+          id: true,
+          fechaCopia: true,
+          hora: true,
+          estado_pago: true,
+          estado: true,
+          user: true,
+          title: true,
+          nombreCliente: true,
+          apellidoCliente: true,
+          monto_cancha: true,
+          monto_sena: true,
+          cancha: { select: { nombre: true } },
+          historicos: {
+            where: { action: "CANCELAR" },
+            orderBy: { version: "desc" },
+            take: 1,
+            select: { changedAt: true },
+          },
+        },
       }),
     ]);
 
-    if (totalItems === 0) {
-      return res.status(404).json({
-        ok: false,
-        msg: "No se encontraron reservas en el rango de fechas especificado",
-        reservasFormateadas: [],
-        totalPages: 1,
-      });
-    }
-
-    // 5) salida igual a Mongo: base + campos según estado_pago
+    // 6) Formateo de salida
     const reservasFormateadas = rows.map((r) => {
+      const canchaNombre = r?.title || r?.cancha?.nombre || "";
+      const eliminadaEn = r?.historicos?.[0]?.changedAt ?? null;
+
       const base = {
         nombre: r.nombreCliente,
         apellido: r.apellidoCliente,
-        fecha: anchorDateObj(r.fechaCopia), // T03:00:00.000Z para compat
-        cancha: r.title, // nombre de la cancha
+        fecha: anchorDateObj(r.fechaCopia),
+        eliminadaEn,   // 👈 NUEVO: fecha de eliminación
+        cancha: canchaNombre,
         hora: r.hora,
         estadoPago: r.estado_pago,
         estado: r.estado,
         usuario: r.user,
       };
+
       const monto_total = Number(r.monto_cancha || 0);
-      const monto_sena = Number(r.monto_sena || 0);
+      const monto_sena  = Number(r.monto_sena || 0);
 
       switch (estado) {
-        case "TOTAL":
-          return { ...base, monto_total };
-        case "SEÑA":
-          return { ...base, monto_sena };
-        case "IMPAGO":
-          return base;
-        default: // TODAS
-          return { ...base, monto_total, monto_sena };
+        case "TOTAL": return { ...base, monto_total };
+        case "SEÑA":  return { ...base, monto_sena };
+        case "IMPAGO": return base;
+        default: return { ...base, monto_total, monto_sena };
       }
     });
 
@@ -1586,15 +1592,13 @@ async function reservasEliminadasRango(req, res) {
       page,
       totalPages: Math.max(1, Math.ceil(totalItems / limit)),
       totalItems,
-      msg: "Estado de las reservas eliminadas",
     });
   } catch (err) {
     console.error("reservasEliminadasRango error:", err);
-    return res
-      .status(500)
-      .json({ ok: false, msg: "Consulte con el administrador" });
+    return res.status(500).json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
+
 
 module.exports = {
   crearReserva,
