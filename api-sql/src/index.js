@@ -1,22 +1,134 @@
-const express = require('express');
-const cors = require('cors');
-require('dotenv').config();
-
+const express = require("express");
+require("dotenv").config();
+const { dbConection } = require("../database/config");
+// const { dbConnection } = require('../database/config');
+// const cors = require("cors"); // ya no es obligatorio si mantenés tu middleware manual
 
 const app = express();
-app.use(cors());
+
+// BASE DE DATOS
+dbConection();
+
+// CORS: Local + Producción, usando variables de entorno
+const allowedOrigins = [
+  "http://localhost:5173",
+  process.env.FRONTEND_URL, // ej: https://sgr-frontend-v1-p5st.vercel.app
+].filter(Boolean);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, x-token"
+  );
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
+// STATIC (si tenés algo en /public)
+app.use(express.static("public"));
+
+// BODY PARSER
 app.use(express.json());
 
-app.get('/health', (_req, res) => res.json({ ok: true, api: 'sql' }));
+// RUTAS
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/cliente", require("./routes/cliente"));
+app.use("/api/cancha", require("./routes/cancha"));
+app.use("/api/reserva", require("./routes/reserva"));
+app.use("/api/configuracion", require("./routes/configuracion"));
 
-app.use('/cliente', require('./routes/cliente.js'));
-app.use('/cancha', require('./routes/cancha.js'));
-app.use('/auth', require('./routes/auth.js'));
-app.use('/configuracion', require('./routes/configuracion.js'));
-app.use('/reserva', require('./routes/reserva.js'));
+// (Opcional pero muy útil) Health check para el host
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true });
+});
 
+// ESCUCHAR PETICIONES
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en puerto ${PORT}`);
+});
 
+// const express = require("express");
+// require("dotenv").config();
+// const { dbConection } = require("./database/config");
+// const cors = require("cors");
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Base de Datos Corriendo en puerto:${PORT}`));
+// // CREAR SERVIDOR express
+// const app = express();
 
+// // BASE DE DATOS
+// dbConection();
+
+// // CORS DEFINITIVO para Localhost + Vercel
+
+// const allowedOrigins = [
+//   "http://localhost:5173",
+//   "https://sgr-frontend-v1-p5st.vercel.app",
+// ];
+
+// app.use((req, res, next) => {
+//   const origin = req.headers.origin;
+//   if (allowedOrigins.includes(origin)) {
+//     res.setHeader("Access-Control-Allow-Origin", origin);
+//   }
+//   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+//   res.setHeader(
+//     "Access-Control-Allow-Headers",
+//     "Content-Type, Authorization, x-token"
+//   );
+//   res.setHeader("Access-Control-Allow-Credentials", "true");
+
+//   if (req.method === "OPTIONS") {
+//     return res.sendStatus(204);
+//   }
+
+//   next();
+// });
+// // const allowedOrigins = [
+// //   "http://localhost:5173",
+// //   "https://sgr-frontend-v1-p5st.vercel.app",
+// // ];
+
+// // const corsOptions = {
+// //   origin: function (origin, callback) {
+// //     if (!origin || allowedOrigins.includes(origin)) {
+// //       callback(null, true);
+// //     } else {
+// //       callback(new Error("Not allowed by CORS"));
+// //     }
+// //   },
+// //   methods: "GET,POST,PUT,DELETE,OPTIONS",
+// //   allowedHeaders: ["Content-Type", "Authorization", "x-token"],
+// //   credentials: true,
+// //   optionsSuccessStatus: 204,
+// // };
+
+// // app.use(cors(corsOptions));
+
+// // DIRECTORIO PUBLICO
+// app.use(express.static("public"));
+
+// // LECTURA Y PARSEO DEL BODY
+// app.use(express.json());
+
+// // RUTAS
+// app.use("/api/auth", require("./routes/auth"));
+// app.use("/api/cliente", require("./routes/cliente"));
+// app.use("/api/cancha", require("./routes/cancha"));
+// app.use("/api/reserva", require("./routes/reserva"));
+// app.use("/api/configuracion", require("./routes/configuracion"));
+
+// // ESCUCHAR PETICIONES
+// app.listen(process.env.PORT, () => {
+//   console.log(`Servidor corriendo en puerto ${process.env.PORT}`);
+// });
