@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["public", "v2"]
 }
 
 model Cliente {
@@ -18,6 +19,8 @@ model Cliente {
   estado   String    @default("activo") // ← nuevo
 
   @@index([apellido, nombre])
+  @@schema("v2")
+
 }
 
 model ClienteHist {
@@ -36,6 +39,8 @@ model ClienteHist {
   changedAt DateTime @default(now())
 
   @@index([clienteId, changedAt])
+  @@schema("v2")
+
 }
 
 model Cancha {
@@ -54,6 +59,8 @@ model Cancha {
 
   @@index([nombre])
   @@index([medidas])
+  @@schema("v2")
+
 }
 
 model CanchaHist {
@@ -72,6 +79,8 @@ model CanchaHist {
   cancha Cancha @relation(fields: [canchaId], references: [id])
 
   @@index([canchaId, changedAt])
+  @@schema("v2")
+
 }
 
 model Configuracion {
@@ -90,6 +99,8 @@ model Configuracion {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+  @@schema("v2")
+
 }
 
 model ConfiguracionHist {
@@ -110,6 +121,8 @@ model ConfiguracionHist {
 
   @@index([configuracionId, changedAt])
   @@index([canchaId, changedAt])
+  @@schema("v2")
+
 }
 
 model Usuario {
@@ -129,6 +142,8 @@ model Usuario {
 
   @@index([apellido, nombre])
   @@index([user])
+  @@schema("v2")
+
 }
 
 model UsuarioHist {
@@ -149,6 +164,8 @@ model UsuarioHist {
   changedAt    DateTime @default(now())
 
   @@index([usuarioId, changedAt])
+  @@schema("v2")
+
 }
 
 model Reserva {
@@ -196,6 +213,9 @@ model Reserva {
   @@index([canchaId, fechaCopia, hora])
   @@index([fechaCopia, estado])
   @@index([clienteId, fecha])
+
+  @@schema("v2")
+
 }
 
 model ReservaHist {
@@ -236,4 +256,7 @@ model ReservaHist {
 
   @@unique([reservaId, version])
   @@index([reservaId, version])
+
+  @@schema("v2")
+
 }
