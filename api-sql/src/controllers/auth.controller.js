@@ -184,15 +184,23 @@ const crearUsuario = async (req, res) => {
       token,
     });
   } catch (e) {
+    console.error(e);
     if (e.code === "P2002")
       return res
         .status(400)
         .json({ ok: false, msg: "Usuario o email duplicado" });
-    console.error(e);
-    return res
+    
+    // return res
+    //   .status(500)
+    //   .json({ ok: false, msg: "por favor hable con el administrador" });
+      
+      return res
       .status(500)
-      .json({ ok: false, msg: "por favor hable con el administrador" });
+      .json({ ok: false, msg: error.message || 'Error inesperado en crearUsuario',});
+    
+      
   }
+  
 };
 //======================================BUSCAR_USUARIO============================================
 const buscarUsuarios = async (req, res) => {
