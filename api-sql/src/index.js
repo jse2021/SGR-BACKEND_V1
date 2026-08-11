@@ -7,7 +7,8 @@ require("dotenv").config();
 const app = express();
 
 // BASE DE DATOS
-dbConection();
+// dbConection();
+const { prisma } = require("./db"); // opcional, si existe
 
 // CORS: Local + Producción, usando variables de entorno
 const allowedOrigins = [
