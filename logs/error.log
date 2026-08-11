@@ -553,3 +553,15 @@
     at C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\index.js:284:15
     at Function.process_params (C:\Users\Jose\Desktop\SGR-BACKEND_V1\node_modules\express\lib\router\index.js:346:12)
 >>>>>>> e4b4d267b7a0a835d532b1f77b1de4b6090067a8
+[2026-08-10 16:54:19] ERROR: MongooseError: Operation `usuarios.findOne()` buffering timed out after 10000ms
+    at Timeout.<anonymous> (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\drivers\node-mongodb-native\collection.js:186:23)
+    at listOnTimeout (node:internal/timers:588:17)
+    at process.processTimers (node:internal/timers:523:7)
+[2026-08-11 14:49:37] ERROR: MongooseError: Operation `usuarios.findOne()` buffering timed out after 10000ms
+    at Timeout.<anonymous> (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\drivers\node-mongodb-native\collection.js:186:23)
+    at listOnTimeout (node:internal/timers:588:17)
+    at process.processTimers (node:internal/timers:523:7)
+[2026-08-11 14:50:13] ERROR: MongooseError: Operation `usuarios.findOne()` buffering timed out after 10000ms
+    at Timeout.<anonymous> (C:\Users\Maldonado Jose\Desktop\SGR-BACKEND_V1\node_modules\mongoose\lib\drivers\node-mongodb-native\collection.js:186:23)
+    at listOnTimeout (node:internal/timers:588:17)
+    at process.processTimers (node:internal/timers:523:7)

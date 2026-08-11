@@ -1,12 +1,12 @@
 const express = require("express");
 require("dotenv").config();
-const { dbConection } = require("./database/config");
+// const { dbConection } = require("./database/config");
 // const cors = require("cors"); // ya no es obligatorio si mantenés tu middleware manual
 
 const app = express();
 
 // BASE DE DATOS
-dbConection();
+// dbConection();
 
 // CORS: Local + Producción, usando variables de entorno
 const allowedOrigins = [
