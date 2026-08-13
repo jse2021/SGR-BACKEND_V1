@@ -103,6 +103,7 @@ async function crearReserva(req, res) {
       fechaCopia: fechaCopiaRequest,
       hora: horaRequest,
       forma_pago,
+      pagos, // <--- NUEVO: Arreglo de pagos divididos
       observacion,
       title,
       start,
@@ -238,6 +239,25 @@ async function crearReserva(req, res) {
     const monto_cancha = estadoPagoRequest === "TOTAL" ? importeFinal : 0;
     const monto_sena = estadoPagoRequest === "SEÑA" ? importeFinal : 0;
 
+    // --- NUEVO: ADAPTADOR PARA PAGOS DIVIDIDOS ---
+    let listaPagos = [];
+    if (pagos && Array.isArray(pagos) && pagos.length > 0) {
+      // Si el front ya está actualizado y manda pagos divididos
+      listaPagos = pagos;
+    } else if (forma_pago && importeFinal > 0) {
+      // Si viene del front viejo (texto simple), lo convertimos al nuevo formato
+      listaPagos = [{ forma_pago: forma_pago, monto: importeFinal }];
+    }
+
+    // Validamos que el cajero no se haya equivocado con los montos divididos
+    if (listaPagos.length > 0) {
+      const sumaPagos = listaPagos.reduce((acc, p) => acc + Number(p.monto), 0);
+      if (sumaPagos !== importeFinal) {
+        return res.status(400).json({ ok: false, msg: "La suma de los pagos divididos no coincide con el importe total a cobrar." });
+      }
+    }
+    // ---------------------------------------------
+
     // 8) Usuario (texto + id)
     const usuario = uid
       ? await prisma.usuario.findUnique({ where: { id: Number(uid) } })
@@ -261,6 +281,7 @@ async function crearReserva(req, res) {
     }
 
     // 10) Crear + histórico v1 (transacción)
+
     let creada;
     await prisma.$transaction(async (tx) => {
       creada = await tx.reserva.create({
@@ -272,11 +293,12 @@ async function crearReserva(req, res) {
           user: usuario?.user ?? null,
 
           estado_pago: estadoPagoRequest,
-          forma_pago,
+          // Por compatibilidad con vistas viejas, guardamos un resumen textual (Ej: "EFECTIVO + TARJETA")
+          forma_pago: listaPagos.map(p => p.forma_pago).join(" + ") || forma_pago || "", 
           estado: "activo",
 
-          monto_cancha: estadoPagoRequest === "TOTAL" ? importeFinal : 0,
-          monto_sena: estadoPagoRequest === "SEÑA" ? importeFinal : 0,
+          monto_cancha: monto_cancha,
+          monto_sena: monto_sena,
 
           fecha: anchorDateObj(fechaDiaUTC),
           fechaCopia: fechaDiaUTC,
@@ -289,6 +311,15 @@ async function crearReserva(req, res) {
           nombreCliente: clienteRow.nombre,
           apellidoCliente: clienteRow.apellido,
           observacion: observacion ?? null,
+
+          // NUEVO: Enganchamos los tickets de pago a esta reserva
+          pagos: {
+            create: listaPagos.map(p => ({
+              forma_pago: p.forma_pago,
+              monto: p.monto,
+              usuarioId: usuario?.id ?? null
+            }))
+          }
         },
       });
 
@@ -304,6 +335,10 @@ async function crearReserva(req, res) {
           usuarioId: creada.usuarioId,
           estado_pago: creada.estado_pago,
           forma_pago: creada.forma_pago,
+          
+          // NUEVO: Guardamos la foto exacta de los pagos en formato JSON
+          pagos_snapshot: listaPagos,
+
           estado: creada.estado,
           monto_cancha: creada.monto_cancha,
           monto_sena: creada.monto_sena,
