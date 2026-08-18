@@ -378,6 +378,7 @@ async function crearReserva(req, res) {
     }
 
     // 12) Respuesta igual a Mongo (montos como número y fechas ancladas a 03:00Z)
+// 12) Respuesta igual a Mongo (montos como número y fechas ancladas a 03:00Z)
     const reservaOut = {
       ...creada,
       monto_cancha: Number(creada.monto_cancha || 0),
@@ -393,6 +394,9 @@ async function crearReserva(req, res) {
       start: anchorDateObj(creada.fechaCopia),
       end: anchorDateObj(creada.fechaCopia),
       fechaCopia: anchorDateObj(creada.fechaCopia),
+      
+      // NUEVO: Devolvemos los pagos al frontend
+      pagos: creada.pagos ? creada.pagos.map(p => ({ ...p, monto: Number(p.monto || 0) })) : [],
     };
 
     return res.status(201).json({
@@ -568,7 +572,7 @@ async function actualizarReserva(req, res) {
       const precioTotal = Number(conf?.monto_cancha || 0);
       const precioSena = Number(conf?.monto_sena || 0);
 
-      if (estadoPago === "TOTAL") {
+if (estadoPago === "TOTAL") {
         monto_cancha = precioTotal;
         monto_sena = 0;
       } else if (estadoPago === "SEÑA") {
@@ -579,6 +583,24 @@ async function actualizarReserva(req, res) {
         monto_sena = 0;
       }
     }
+
+    // --- NUEVO: ADAPTADOR Y VALIDACIÓN PARA PAGOS AL ACTUALIZAR ---
+    let listaPagos = [];
+    if (nueva.pagos && Array.isArray(nueva.pagos) && nueva.pagos.length > 0) {
+      listaPagos = nueva.pagos;
+    } else if (nueva.forma_pago && (monto_cancha > 0 || monto_sena > 0)) {
+      listaPagos = [{ forma_pago: nueva.forma_pago, monto: monto_cancha > 0 ? monto_cancha : monto_sena }];
+    }
+
+    const importeEsperado = estadoPago === "TOTAL" ? monto_cancha : (estadoPago === "SEÑA" ? monto_sena : 0);
+    
+    if (estadoPago !== "IMPAGO" && listaPagos.length > 0) {
+      const sumaPagos = listaPagos.reduce((acc, p) => acc + Number(p.monto), 0);
+      if (sumaPagos !== importeEsperado) {
+        return res.status(400).json({ ok: false, msg: "La suma de los pagos no coincide con el importe total esperado." });
+      }
+    }
+    // -------------------------------------------------------------
 
     // 7) Chequeo de colisión SOLO si cambia la combinación (cancha/hora)
     const cambiaCancha = destCancha.id !== actual.canchaId;
@@ -647,14 +669,29 @@ async function actualizarReserva(req, res) {
       (k) => dataUpdate[k] === undefined && delete dataUpdate[k]
     );
 
-    // 10) Actualizar + histórico (transacción)
+ // 10) Actualizar + histórico (transacción)
     let updated;
     await prisma.$transaction(async (tx) => {
+
+// 10.1) Actualizamos la reserva reconstruyendo sus pagos
       updated = await tx.reserva.update({
         where: { id: actual.id },
-        data: dataUpdate,
+        data: {
+          ...dataUpdate,
+          forma_pago: listaPagos.map(p => p.forma_pago).join(" + ") || nueva.forma_pago || actual.forma_pago,
+          pagos: {
+            deleteMany: {}, // <-- Borra los tickets anteriores de esta reserva
+            create: listaPagos.map(p => ({ // <-- Crea los nuevos tickets
+              forma_pago: p.forma_pago,
+              monto: p.monto,
+              usuarioId: usuario?.id ?? null
+            }))
+          }
+        },
+        include: { pagos: true }, // <--- ¡AQUÍ ESTÁ LA MAGIA!
       });
 
+      // 10.2) Guardamos el historial con la foto de los nuevos pagos
       const nextVersion =
         (await tx.reservaHist.count({ where: { reservaId: actual.id } })) + 1;
       await tx.reservaHist.create({
@@ -672,6 +709,9 @@ async function actualizarReserva(req, res) {
           estado: updated.estado,
           monto_cancha: updated.monto_cancha,
           monto_sena: updated.monto_sena,
+          
+          pagos_snapshot: listaPagos, // <-- NUEVO: Historial en JSON
+
           fecha: updated.fecha,
           fechaCopia: updated.fechaCopia,
           hora: updated.hora,
@@ -713,7 +753,7 @@ async function actualizarReserva(req, res) {
       console.warn("Email de reserva actualizada falló:", e?.message);
     }
 
-    // 12)Formateo respuesta antes de mandar al front
+// 12)Formateo respuesta antes de mandar al front
     const out = {
       ...updated,
       monto_cancha: Number(updated.monto_cancha || 0),
@@ -728,6 +768,9 @@ async function actualizarReserva(req, res) {
       start: anchorDateObj(updated.fechaCopia),
       end: anchorDateObj(updated.fechaCopia),
       fechaCopia: anchorDateObj(updated.fechaCopia),
+      
+      // NUEVO: Devolvemos los pagos al frontend para que Redux no los pierda
+      pagos: updated.pagos ? updated.pagos.map(p => ({ ...p, monto: Number(p.monto || 0) })) : [],
     };
 
     return res

@@ -48,7 +48,7 @@ router.post(
   [
     check("hora", "El horario no puede estar vacio").not().isEmpty(),
     check("estado_pago", "Debe seleccionar un estado de pago").not().isEmpty(),
-    check("fecha", "La fecha es obligatoria").not().isEmpty(), // si usás isDate personalizado, agregalo
+    check("fecha", "La fecha es obligatoria").not().isEmpty(), 
     check("cancha", "Debe seleccionar una cancha").not().isEmpty(),
     check("cliente", "Debe indicar un cliente").not().isEmpty(),
     check("forma_pago", "Debe indicar la forma de pago").not().isEmpty(),
@@ -65,16 +65,24 @@ router.get("/", async (req, res) => {
       include: {
         cancha: { select: { nombre: true } },
         cliente: { select: { dni: true, nombre: true, apellido: true } },
+        // NUEVO: Le pedimos a Prisma que traiga también los tickets de pago
+        pagos: true, 
       },
     });
 
-    const reservas = rows.map(({ cancha, cliente, ...r }) => ({
+    const reservas = rows.map(({ cancha, cliente, pagos, ...r }) => ({
       ...r,
       cancha: cancha?.nombre ?? "", // front ya usa string para “cancha”
       cliente: cliente?.dni ?? "", // ← ahora el front ve el DNI en activeEvent.cliente
 
       monto_cancha: Number(r.monto_cancha || 0),
       monto_sena: Number(r.monto_sena || 0),
+
+      // NUEVO: Formateamos los pagos para que el monto sea un Número compatible con React
+      pagos: pagos ? pagos.map(p => ({
+        ...p,
+        monto: Number(p.monto || 0)
+      })) : []
     }));
 
     return res.json({ ok: true, reservas });
