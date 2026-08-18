@@ -796,7 +796,10 @@ async function eliminarReserva(req, res) {
 
   try {
     // 1) Buscar reserva
-    const reserva = await prisma.reserva.findUnique({ where: { id } });
+    const reserva = await prisma.reserva.findUnique({ 
+      where: { id }, 
+      include: { pagos: true } // <--- NUEVO: Leemos los pagos antes de cancelar
+    });
     if (!reserva) {
       return res.status(400).json({ ok: false, msg: "La reserva no existe" });
     }
@@ -831,6 +834,8 @@ async function eliminarReserva(req, res) {
           usuarioId: borrada.usuarioId,
           estado_pago: borrada.estado_pago,
           forma_pago: borrada.forma_pago,
+          // NUEVO: Guardamos la foto de los pagos al momento de cancelar
+          pagos_snapshot: reserva.pagos,
           estado: borrada.estado,
           monto_cancha: borrada.monto_cancha,
           monto_sena: borrada.monto_sena,
