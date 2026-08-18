@@ -939,7 +939,8 @@ async function getReservaFechaCancha(req, res) {
       skip,
       take,
       include: {
-        cliente: { select: { dni: true, nombre: true, apellido: true } },
+        cliente: { select: { dni: true, nombre: true, apellido: true }, },
+        pagos: true, // <--- NUEVO: Le pedimos a Prisma que traiga los tickets de pago
       },
     });
 
@@ -954,6 +955,11 @@ async function getReservaFechaCancha(req, res) {
       start: anchorDateObj(r.fechaCopia),
       end: anchorDateObj(r.fechaCopia),
       fechaCopia: anchorDateObj(r.fechaCopia),
+      // NUEVO: Formateamos los pagos y los adjuntamos a la reserva
+      pagos: r.pagos ? r.pagos.map(p => ({
+        ...p,
+        monto: Number(p.monto || 0)
+      })) : []
     }));
 
     // armo la metadata de paginación
@@ -1035,11 +1041,12 @@ async function getReservaClienteRango(req, res) {
         include: {
           cancha: { select: { nombre: true } },
           cliente: { select: { dni: true, nombre: true, apellido: true } },
+          pagos: true, // <--- NUEVO: Le pedimos a Prisma que traiga los tickets
         },
       }),
     ]);
 
-    const reservas = rows.map(({ cancha, cliente: cli, ...r }) => ({
+    const reservas = rows.map(({ cancha, cliente: cli, pagos, ...r }) => ({
       ...r,
       cancha: cancha?.nombre ?? "",
       cliente: cliente?.dni ?? String(dni),
@@ -1049,6 +1056,11 @@ async function getReservaClienteRango(req, res) {
       start: anchorDateObj(r.fechaCopia),
       end: anchorDateObj(r.fechaCopia),
       fechaCopia: anchorDateObj(r.fechaCopia),
+      // NUEVO: Formateamos los pagos y los adjuntamos a la reserva
+      pagos: pagos ? pagos.map(p => ({
+        ...p,
+        monto: Number(p.monto || 0)
+      })) : []
     }));
 
     const resp = {
