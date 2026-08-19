@@ -1413,54 +1413,35 @@ async function estadoRecaudacion(req, res) {
 //================================================ RECAUDACION -> FORMAS DE PAGO (día + filtros) ===========
 async function recaudacionFormasDePago(req, res) {
   try {
-    // 1) Params + decode + trim
     let { fecha, cancha, forma_pago, estado_pago } = req.params;
     const sFecha = String(fecha || "").trim();
 
-    // Decodificar por si llegan en URL-encoding (cancha%20medio, SE%C3%91A, etc.)
     cancha = decodeURIComponent(String(cancha || "")).trim();
     forma_pago = decodeURIComponent(String(forma_pago || "")).trim();
     estado_pago = decodeURIComponent(String(estado_pago || "")).trim();
 
-    // 2) Validar fecha YYYY-MM-DD → construir 00:00Z
     const YMD = /^\d{4}-\d{2}-\d{2}$/;
     if (!YMD.test(sFecha)) {
-      return res
-        .status(400)
-        .json({ ok: false, msg: "Fecha inválida (YYYY-MM-DD)" });
+      return res.status(400).json({ ok: false, msg: "Fecha inválida (YYYY-MM-DD)" });
     }
     const [y, m, d] = sFecha.split("-").map(Number);
     const dayUTC = new Date(Date.UTC(y, m - 1, d));
 
-    // 3) Resolver cancha (si NO es TODAS). Solo activas, case-insensitive
     let canchaRow = null;
     if (cancha && cancha.toUpperCase() !== "TODAS") {
       canchaRow = await prisma.cancha.findFirst({
-        where: {
-          estado: "activo",
-          nombre: { equals: cancha, mode: "insensitive" },
-        },
+        where: { estado: "activo", nombre: { equals: cancha, mode: "insensitive" } },
         select: { id: true, nombre: true },
       });
-      if (!canchaRow) {
-        return res
-          .status(404)
-          .json({ ok: false, msg: "Cancha no encontrada (activa)" });
-      }
+      if (!canchaRow) return res.status(404).json({ ok: false, msg: "Cancha no encontrada (activa)" });
     }
 
-    // 4) Normalizar forma/estado (tolerante a tildes). TODAS = no filtra
-    const norm = (s = "") =>
-      String(s)
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toUpperCase();
+    const norm = (s = "") => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     let forma = norm(forma_pago || "TODAS");
     let estado = norm(estado_pago || "TODAS");
     if (forma === "SENA") forma = "SEÑA";
     if (estado === "SENA") estado = "SEÑA";
 
-    // 5) Paginación
     const q = req.query || {};
     const limit = Number(q.limite ?? q.limit ?? 10);
     const page = q.page ? Math.max(1, Number(q.page)) : null;
@@ -1468,20 +1449,22 @@ async function recaudacionFormasDePago(req, res) {
     const skip = Math.max(0, desde);
     const take = Math.max(1, Math.min(100, limit));
 
-    // 6) Filtro base (día exacto, solo activas) + filtros opcionales
+    // 1) Filtro inteligente que incluye lectura de la nueva tabla Pagos
     const where = {
       estado: "activo",
       fechaCopia: dayUTC,
       ...(canchaRow ? { canchaId: canchaRow.id } : {}),
+      ...(estado !== "TODAS" ? { estado_pago: { equals: estado, mode: "insensitive" } } : {}),
       ...(forma !== "TODAS"
-        ? { forma_pago: { equals: forma, mode: "insensitive" } }
-        : {}),
-      ...(estado !== "TODAS"
-        ? { estado_pago: { equals: estado, mode: "insensitive" } }
+        ? {
+            OR: [
+              { pagos: { some: { forma_pago: { equals: forma, mode: "insensitive" } } } },
+              { pagos: { none: {} }, forma_pago: { contains: forma, mode: "insensitive" } }
+            ]
+          }
         : {}),
     };
 
-    // 7) Precio base para deuda (si hay cancha definida)
     let precioBase = 0;
     if (canchaRow) {
       const conf = await prisma.configuracion.findFirst({
@@ -1491,53 +1474,58 @@ async function recaudacionFormasDePago(req, res) {
       precioBase = Number(conf?.monto_cancha ?? 0);
     }
 
-    // 8) Totales globales + total items
-    const [{ _sum }, total] = await Promise.all([
-      prisma.reserva.aggregate({
-        where,
-        _sum: { monto_cancha: true, monto_sena: true },
-      }),
-      prisma.reserva.count({ where }),
-    ]);
-    const totalMontoCancha = Number(_sum.monto_cancha || 0);
-    const totalMontoSena = Number(_sum.monto_sena || 0);
-
-    // Deuda global (si hay cancha; si no, no se puede calcular sin precio base)
-    let totalDeuda = 0;
-    if (canchaRow) {
-      const rowsForDebt = await prisma.reserva.findMany({
-        where,
-        select: { estado_pago: true, monto_sena: true },
-      });
-      totalDeuda = rowsForDebt.reduce((acc, r) => {
-        if (r.estado_pago === "TOTAL") return acc;
-        if (r.estado_pago === "SEÑA")
-          return acc + Math.max(0, precioBase - Number(r.monto_sena || 0));
-        return acc + precioBase; // IMPAGO
-      }, 0);
-    }
-
-    // 9) Página de resultados (con relaciones para mostrar nombres en el front)
-    const rows = await prisma.reserva.findMany({
+    // 2) Extraemos TODAS las reservas del día para calcular la matemática perfecta en memoria
+    const allRows = await prisma.reserva.findMany({
       where,
-      orderBy: [{ fechaCopia: "asc" }, { hora: "asc" }, { id: "asc" }],
-      skip,
-      take,
+      orderBy: [{ hora: "asc" }, { id: "asc" }],
       include: {
         cancha: { select: { nombre: true } },
         cliente: { select: { nombre: true, apellido: true, dni: true } },
         usuario: { select: { user: true } },
+        pagos: true // <-- Leemos los tickets exactos
       },
     });
 
-    const reservas = rows.map((r) => {
+    const total = allRows.length;
+    
+    let totalMontoCancha = 0;
+    let totalMontoSena = 0;
+    let totalDeuda = 0;
+    let dineroRealIngresado = 0; // Esta es la caja real
+
+    const reservasCompletas = allRows.map((r) => {
       const consolidado = Number(r.monto_cancha || 0);
       const senia = Number(r.monto_sena || 0);
+
+      // Sumamos cuánto se pagó realmente revisando ticket por ticket
+      let totalPagado = 0;
+      let pagadoFiltro = 0;
+
+      if (r.pagos && r.pagos.length > 0) {
+        totalPagado = r.pagos.reduce((acc, p) => acc + Number(p.monto), 0);
+        
+        // Sumamos a la caja SOLO los tickets que coincidan con la forma de pago buscada
+        pagadoFiltro = r.pagos
+          .filter(p => forma === "TODAS" || p.forma_pago.toUpperCase() === forma)
+          .reduce((acc, p) => acc + Number(p.monto), 0);
+      } else {
+        // Fallback matemático para reservas antiguas
+        totalPagado = r.estado_pago === "TOTAL" ? consolidado : (r.estado_pago === "SEÑA" ? senia : 0);
+        const match = forma === "TODAS" || (r.forma_pago || "").toUpperCase().includes(forma);
+        pagadoFiltro = match ? totalPagado : 0;
+      }
+
+      // Cálculo de deuda real y blindada contra números negativos
       let deuda = 0;
       if (canchaRow) {
-        if (r.estado_pago === "SEÑA") deuda = Math.max(0, precioBase - senia);
-        else if (r.estado_pago === "IMPAGO") deuda = precioBase;
+        deuda = Math.max(0, precioBase - totalPagado);
       }
+
+      totalMontoCancha += (r.estado_pago === "TOTAL" ? totalPagado : 0);
+      totalMontoSena += (r.estado_pago === "SEÑA" ? totalPagado : 0);
+      totalDeuda += deuda;
+      dineroRealIngresado += pagadoFiltro; // Lo que va a la caja
+
       return {
         ...r,
         monto_cancha: consolidado,
@@ -1547,14 +1535,17 @@ async function recaudacionFormasDePago(req, res) {
         start: anchorDateObj(r.fechaCopia),
         end: anchorDateObj(r.fechaCopia),
         fechaCopia: anchorDateObj(r.fechaCopia),
+        pagos: r.pagos ? r.pagos.map(p => ({ ...p, monto: Number(p.monto) })) : []
       };
     });
 
-    // 10) Respuesta alineada al front (FormaPago)
+    // 3) Paginamos el resultado final
+    const reservas = reservasCompletas.slice(skip, skip + take);
+
     const resp = {
       ok: true,
       total,
-      reservas, // <-- FormaPago usa este arreglo
+      reservas,
       limite: take,
       desde: skip,
       filtro: {
@@ -1567,7 +1558,7 @@ async function recaudacionFormasDePago(req, res) {
         monto_cancha: totalMontoCancha,
         monto_sena: totalMontoSena,
         monto_deuda: totalDeuda,
-        total: totalMontoCancha + totalMontoSena,
+        total: dineroRealIngresado, // El valor matemático exacto de la caja
       },
     };
     if (page) {
@@ -1578,9 +1569,7 @@ async function recaudacionFormasDePago(req, res) {
     return res.json(resp);
   } catch (err) {
     console.error("recaudacionFormasDePago error:", err);
-    return res
-      .status(500)
-      .json({ ok: false, msg: "Consulte con el administrador" });
+    return res.status(500).json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
 //================================================RESERVAS_ELIMINADAS====================================
