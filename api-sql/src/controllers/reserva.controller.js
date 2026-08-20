@@ -91,10 +91,11 @@ async function obtenerMontoPorEstado(req, res) {
   }
 }
 
-// ============================================== CREAR RESERVA===========================================
+
+// ============================================== CREAR RESERVA (Con soporte para Turnos Fijos) ==========
 async function crearReserva(req, res) {
   try {
-    // 1) Body del front (igual a Mongo)
+    // 1) Body del front
     const {
       cliente: clienteRequest,
       cancha: canchaRequest,
@@ -103,16 +104,19 @@ async function crearReserva(req, res) {
       fechaCopia: fechaCopiaRequest,
       hora: horaRequest,
       forma_pago,
-      pagos, // <--- NUEVO: Arreglo de pagos divididos
+      pagos, // Arreglo de pagos divididos
       observacion,
       title,
       start,
       end,
+      // NUEVO: Parámetros para Turno Fijo / Recurrente
+      frecuencia = "NINGUNA",
+      fechaFin: fechaFinRequest,
     } = req.body;
 
     const uid = req.uid ?? req.id ?? null;
 
-    // 2) Validaciones base (mismos mensajes)
+    // 2) Validaciones base
     if (!clienteRequest)
       return res.status(400).json({ ok: false, msg: "No existe cliente" });
     if (!canchaRequest)
@@ -125,23 +129,21 @@ async function crearReserva(req, res) {
     if (!horaRequest)
       return res
         .status(400)
-        .json({ ok: false, msg: "El horario no puede estar vacio" });
+        .json({ ok: false, msg: "El horario no puede estar vacío" });
     if (!estadoPagoRequest)
       return res
         .status(400)
         .json({ ok: false, msg: "Debe seleccionar un estado de pago" });
 
-    // 3) Resolver cancha y cliente (SOLO ACTIVOS) + configuración
+    // 3) Resolver cancha y cliente (SOLO ACTIVOS)
     const nombreCancha = String(canchaRequest || "").trim();
     const dniCliente = String(clienteRequest || "").trim();
 
-    const [configuraciones, clienteRow, canchaRow] = await Promise.all([
-      prisma.configuracion.findMany({ include: { cancha: true } }),
+    const [clienteRow, canchaRow] = await Promise.all([
       prisma.cliente.findFirst({
         where: { estado: "activo", dni: dniCliente },
         select: { id: true, nombre: true, apellido: true, email: true },
       }),
-
       prisma.cancha.findFirst({
         where: {
           estado: "activo",
@@ -162,247 +164,271 @@ async function crearReserva(req, res) {
         .json({ ok: false, msg: "No existe cancha (activa)" });
     }
 
-    // 3.1) Ignoramos montos del body: la fuente de verdad es configuracion
-    let importeFinal = null;
-
-    // 4) Normalización de fecha + hora (seguro para ISO o YYYY-MM-DD)
-    const fechaDiaUTC = dateOnlyUTC(fechaRequest || fechaCopiaRequest);
-    const horaStr = String(horaRequest || "00:00").padStart(5, "0");
-
-    // 5) reservasDelDia (compat con tu lógica; no se usa luego)
-    const reservasRegistradas = await prisma.reserva.findMany({
-      where: {
-        fechaCopia: fechaDiaUTC, // antes: dayUTC
-        canchaId: canchaRow.id, // antes: cancha.id
-        OR: [{ estado: "activo" }, { estado: { equals: "" } }],
-      },
-      select: { id: true, hora: true },
+    // 4) Configuración de precios de la cancha
+    const conf = await prisma.configuracion.findUnique({
+      where: { canchaId: canchaRow.id },
+      select: { monto_cancha: true, monto_sena: true },
     });
-    const reservasDelDia = reservasRegistradas.filter(
-      (r) => r.hora === horaStr
-    );
-    // 6) Fallback de monto directo desde configuracion (sin axios)
-    {
-      const conf = await prisma.configuracion.findUnique({
-        where: { canchaId: canchaRow.id },
-        select: { monto_cancha: true, monto_sena: true },
+
+    if (!conf) {
+      return res.status(400).json({
+        ok: false,
+        msg: "La cancha no tiene configuración de precios",
       });
-
-      if (!conf) {
-        return res.status(400).json({
-          ok: false,
-          msg: "La cancha no tiene configuración de precios",
-        });
-      }
-
-      if (estadoPagoRequest === "TOTAL") {
-        importeFinal = Number(conf.monto_cancha || 0);
-      } else if (estadoPagoRequest === "SEÑA") {
-        importeFinal = Number(conf.monto_sena || 0);
-      } else {
-        // IMPAGO u otros
-        importeFinal = 0;
-      }
     }
 
-    // // 6) Llamado interno para monto (con x-token); fallback si falla
-    // if (importeFinal === null) {
-    //   const token = req.header("x-token") || "";
-    //   const API_BASE = process.env.API_ORIGIN_BASE || "http://localhost:5000";
-    //   try {
-    //     const { data } = await axios.post(
-    //       `${API_BASE}/reserva/obtener-monto`,
-    //       { cancha: canchaRequest, estado_pago: estadoPagoRequest },
-    //       { headers: { "x-token": token } }
-    //     );
-    //     if (!data.ok) throw new Error("monto-no-disponible");
-    //     importeFinal = Number(data.monto || 0);
-    //   } catch {
-    //     const confFallback = await prisma.configuracion.findUnique({
-    //       where: { canchaId: canchaRow.id },
-    //     });
-    //     if (!confFallback) {
-    //       return res.status(400).json({
-    //         ok: false,
-    //         msg: "La cancha no tiene configuración de precios",
-    //       });
-    //     }
-    //     if (estadoPagoRequest === "TOTAL")
-    //       importeFinal = Number(confFallback.monto_cancha || 0);
-    //     else if (estadoPagoRequest === "SEÑA")
-    //       importeFinal = Number(confFallback.monto_sena || 0);
-    //     else importeFinal = 0;
-    //   }
-    // }
+    let importeFinal = 0;
+    if (estadoPagoRequest === "TOTAL") {
+      importeFinal = Number(conf.monto_cancha || 0);
+    } else if (estadoPagoRequest === "SEÑA") {
+      importeFinal = Number(conf.monto_sena || 0);
+    }
 
-    // 7) Montos automáticos
     const monto_cancha = estadoPagoRequest === "TOTAL" ? importeFinal : 0;
     const monto_sena = estadoPagoRequest === "SEÑA" ? importeFinal : 0;
 
-    // --- NUEVO: ADAPTADOR PARA PAGOS DIVIDIDOS ---
+    // 5) Adaptador para Pagos Divididos
     let listaPagos = [];
     if (pagos && Array.isArray(pagos) && pagos.length > 0) {
-      // Si el front ya está actualizado y manda pagos divididos
       listaPagos = pagos;
     } else if (forma_pago && importeFinal > 0) {
-      // Si viene del front viejo (texto simple), lo convertimos al nuevo formato
       listaPagos = [{ forma_pago: forma_pago, monto: importeFinal }];
     }
 
-    // Validamos que el cajero no se haya equivocado con los montos divididos
     if (listaPagos.length > 0) {
       const sumaPagos = listaPagos.reduce((acc, p) => acc + Number(p.monto), 0);
       if (sumaPagos !== importeFinal) {
-        return res.status(400).json({ ok: false, msg: "La suma de los pagos divididos no coincide con el importe total a cobrar." });
+        return res.status(400).json({
+          ok: false,
+          msg: "La suma de los pagos divididos no coincide con el importe total a cobrar.",
+        });
       }
     }
-    // ---------------------------------------------
 
-    // 8) Usuario (texto + id)
+    // 6) Normalización de Fecha Inicio y Hora
+    const fechaInicioUTC = dateOnlyUTC(fechaRequest || fechaCopiaRequest);
+    const horaStr = String(horaRequest || "00:00").padStart(5, "0");
+
+    // 7) Generación de lista de fechas según la Frecuencia
+    const esRecurrente =
+      frecuencia &&
+      frecuencia.toUpperCase() !== "NINGUNA" &&
+      fechaFinRequest;
+
+    const fechasASeparar = [fechaInicioUTC];
+
+    if (esRecurrente) {
+      const fechaFinUTC = dateOnlyUTC(fechaFinRequest);
+      let fechaCursor = new Date(fechaInicioUTC);
+
+      // Limite de seguridad de repeticiones (máx 52 semanas / 1 año)
+      let iteraciones = 0;
+      while (iteraciones < 52) {
+        iteraciones++;
+        if (frecuencia.toUpperCase() === "SEMANAL") {
+          fechaCursor.setUTCDate(fechaCursor.getUTCDate() + 7);
+        } else if (frecuencia.toUpperCase() === "QUINCENAL") {
+          fechaCursor.setUTCDate(fechaCursor.getUTCDate() + 14);
+        } else if (frecuencia.toUpperCase() === "MENSUAL") {
+          fechaCursor.setUTCMonth(fechaCursor.getUTCMonth() + 1);
+        } else {
+          break;
+        }
+
+        if (fechaCursor > fechaFinUTC) break;
+        fechasASeparar.push(new Date(fechaCursor));
+      }
+    }
+
+    // 8) Chequeo de colisión previo en TODAS las fechas de la serie
+    const ocupadas = await prisma.reserva.findMany({
+      where: {
+        canchaId: canchaRow.id,
+        fechaCopia: { in: fechasASeparar },
+        hora: horaStr,
+        estado: "activo",
+      },
+      select: { fechaCopia: true },
+    });
+
+    if (ocupadas.length > 0) {
+      const fechasOcupadasStr = ocupadas
+        .map((o) => anchorDateObj(o.fechaCopia).toLocaleDateString("es-AR"))
+        .join(", ");
+      return res.status(409).json({
+        ok: false,
+        msg: `No se pudo crear el Turno Fijo. Horario ocupado en las siguientes fechas: ${fechasOcupadasStr}`,
+      });
+    }
+
+    // 9) Generar ID de Turno Fijo si aplica
+    const turnoFijoId = esRecurrente
+      ? `tf_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+      : null;
+
+    // 10) Usuario ejecutor
     const usuario = uid
       ? await prisma.usuario.findUnique({ where: { id: Number(uid) } })
       : null;
 
-    // 9) Colisión de turno (slot ocupado)
-    const ocupado = await prisma.reserva.findFirst({
-      where: {
-        canchaId: canchaRow.id, // <-- antes: cancha.id
-        fechaCopia: fechaDiaUTC, // <-- antes: dayUTC
-        hora: horaStr,
-        estado: "activo",
-      },
-      select: { id: true },
-    });
-    if (ocupado) {
-      return res.status(409).json({
-        ok: false,
-        msg: "Turno ocupado para esa cancha, fecha y hora",
-      });
-    }
+  // 11) Transacción de Creación Masiva (Opción 1: Pago solo en la 1° fecha)
+    let reservasCreadas = [];
 
-    // 10) Crear + histórico v1 (transacción)
-
-    let creada;
     await prisma.$transaction(async (tx) => {
-      creada = await tx.reserva.create({
-        data: {
-          clienteId: clienteRow.id,
-          canchaId: canchaRow.id,
+      for (let i = 0; i < fechasASeparar.length; i++) {
+        const fUTC = fechasASeparar[i];
+        const esPrimeraFecha = i === 0;
 
-          usuarioId: usuario?.id ?? null,
-          user: usuario?.user ?? null,
+        // Si es la primera fecha, guarda el pago registrado.
+        // Si es una fecha futura del Turno Fijo, se crea como IMPAGO.
+        const ePago = esPrimeraFecha ? estadoPagoRequest : "IMPAGO";
+        const fPago = esPrimeraFecha
+          ? (listaPagos.map((p) => p.forma_pago).join(" + ") || forma_pago || "")
+          : "IMPAGO";
+        const mCancha = esPrimeraFecha ? monto_cancha : 0;
+        const mSena = esPrimeraFecha ? monto_sena : 0;
+        const pagosACrear = esPrimeraFecha ? listaPagos : [];
 
-          estado_pago: estadoPagoRequest,
-          // Por compatibilidad con vistas viejas, guardamos un resumen textual (Ej: "EFECTIVO + TARJETA")
-          forma_pago: listaPagos.map(p => p.forma_pago).join(" + ") || forma_pago || "", 
-          estado: "activo",
+        const creada = await tx.reserva.create({
+          data: {
+            clienteId: clienteRow.id,
+            canchaId: canchaRow.id,
+            usuarioId: usuario?.id ?? null,
+            user: usuario?.user ?? null,
 
-          monto_cancha: monto_cancha,
-          monto_sena: monto_sena,
+            estado_pago: ePago,
+            forma_pago: fPago,
+            estado: "activo",
 
-          fecha: anchorDateObj(fechaDiaUTC),
-          fechaCopia: fechaDiaUTC,
-          hora: horaStr,
+            // Campos de Turno Fijo
+            turnoFijoId: turnoFijoId,
+            frecuencia: esRecurrente ? frecuencia.toUpperCase() : "NINGUNA",
 
-          title: title ?? canchaRequest,
-          start: start ? new Date(start) : anchorDateObj(fechaDiaUTC),
-          end: end ? new Date(end) : anchorDateObj(fechaDiaUTC),
+            monto_cancha: mCancha,
+            monto_sena: mSena,
 
-          nombreCliente: clienteRow.nombre,
-          apellidoCliente: clienteRow.apellido,
-          observacion: observacion ?? null,
+            fecha: anchorDateObj(fUTC),
+            fechaCopia: fUTC,
+            hora: horaStr,
 
-          // NUEVO: Enganchamos los tickets de pago a esta reserva
-          pagos: {
-            create: listaPagos.map(p => ({
-              forma_pago: p.forma_pago,
-              monto: p.monto,
-              usuarioId: usuario?.id ?? null
-            }))
-          }
-        },
-      });
+            title: title ?? canchaRequest,
+            start: anchorDateObj(fUTC),
+            end: anchorDateObj(fUTC),
 
-      await tx.reservaHist.create({
-        data: {
-          reservaId: creada.id,
-          version: 1,
-          action: "CREAR",
-          changedById: usuario?.id ?? null,
+            nombreCliente: clienteRow.nombre,
+            apellidoCliente: clienteRow.apellido,
+            observacion: observacion ?? null,
 
-          clienteId: creada.clienteId,
-          canchaId: creada.canchaId,
-          usuarioId: creada.usuarioId,
-          estado_pago: creada.estado_pago,
-          forma_pago: creada.forma_pago,
-          
-          // NUEVO: Guardamos la foto exacta de los pagos en formato JSON
-          pagos_snapshot: listaPagos,
+            pagos: {
+              create: pagosACrear.map((p) => ({
+                forma_pago: p.forma_pago,
+                monto: p.monto,
+                usuarioId: usuario?.id ?? null,
+              })),
+            },
+          },
+          include: { pagos: true },
+        });
 
-          estado: creada.estado,
-          monto_cancha: creada.monto_cancha,
-          monto_sena: creada.monto_sena,
-          fecha: creada.fecha,
-          fechaCopia: creada.fechaCopia,
-          hora: creada.hora,
-          title: creada.title,
-          start: creada.start,
-          end: creada.end,
-          nombreCliente: creada.nombreCliente,
-          apellidoCliente: creada.apellidoCliente,
-          user: creada.user,
-          observacion: creada.observacion,
-        },
-      });
+        await tx.reservaHist.create({
+          data: {
+            reservaId: creada.id,
+            version: 1,
+            action: "CREAR",
+            changedById: usuario?.id ?? null,
+
+            clienteId: creada.clienteId,
+            canchaId: creada.canchaId,
+            usuarioId: creada.usuarioId,
+            estado_pago: creada.estado_pago,
+            forma_pago: creada.forma_pago,
+
+            turnoFijoId: creada.turnoFijoId,
+            frecuencia: creada.frecuencia,
+
+            pagos_snapshot: pagosACrear,
+
+            estado: creada.estado,
+            monto_cancha: creada.monto_cancha,
+            monto_sena: creada.monto_sena,
+            fecha: creada.fecha,
+            fechaCopia: creada.fechaCopia,
+            hora: creada.hora,
+            title: creada.title,
+            start: creada.start,
+            end: creada.end,
+            nombreCliente: creada.nombreCliente,
+            apellidoCliente: creada.apellidoCliente,
+            user: creada.user,
+            observacion: creada.observacion,
+          },
+        });
+
+        reservasCreadas.push(creada);
+      }
     });
 
-    // 11) Email (no romper si falla)
+   
+
+    // 12) Envío de email para la primera fecha
     try {
       if (typeof enviarCorreoReserva === "function" && clienteRow.email) {
+        const primera = reservasCreadas[0];
         const fechaFormateada = anchorDateObj(
-          creada.fechaCopia
+          primera.fechaCopia
         ).toLocaleDateString("es-AR", {
           timeZone: "America/Argentina/Buenos_Aires",
         });
+
+        const msjObs = esRecurrente
+          ? `${
+              primera.observacion || ""
+            } (Turno Fijo ${frecuencia.toUpperCase()} - ${
+              reservasCreadas.length
+            } fechas reservadas)`.trim()
+          : primera.observacion || "";
+
         await enviarCorreoReserva(clienteRow.email, {
           cancha: canchaRequest,
           fecha: fechaFormateada,
-          hora: creada.hora,
-          nombre: `${creada.nombreCliente} ${creada.apellidoCliente}`,
-          estado: creada.estado_pago,
-          observacion: creada.observacion || "",
+          hora: primera.hora,
+          nombre: `${primera.nombreCliente} ${primera.apellidoCliente}`,
+          estado: primera.estado_pago,
+          observacion: msjObs,
         });
       }
     } catch (e) {
       console.warn("Email de reserva falló:", e?.message);
     }
 
-    // 12) Respuesta igual a Mongo (montos como número y fechas ancladas a 03:00Z)
-// 12) Respuesta igual a Mongo (montos como número y fechas ancladas a 03:00Z)
+    // 13) Formateo de respuesta
+    const primeraCreada = reservasCreadas[0];
     const reservaOut = {
-      ...creada,
-      monto_cancha: Number(creada.monto_cancha || 0),
-      monto_sena: Number(creada.monto_sena || 0),
-      // helper opcional para UI:
+      ...primeraCreada,
+      monto_cancha: Number(primeraCreada.monto_cancha || 0),
+      monto_sena: Number(primeraCreada.monto_sena || 0),
       monto:
-        creada.estado_pago === "TOTAL"
-          ? Number(creada.monto_cancha || 0)
-          : creada.estado_pago === "SEÑA"
-          ? Number(creada.monto_sena || 0)
+        primeraCreada.estado_pago === "TOTAL"
+          ? Number(primeraCreada.monto_cancha || 0)
+          : primeraCreada.estado_pago === "SEÑA"
+          ? Number(primeraCreada.monto_sena || 0)
           : 0,
-      fecha: anchorDateObj(creada.fechaCopia),
-      start: anchorDateObj(creada.fechaCopia),
-      end: anchorDateObj(creada.fechaCopia),
-      fechaCopia: anchorDateObj(creada.fechaCopia),
-      
-      // NUEVO: Devolvemos los pagos al frontend
-      pagos: creada.pagos ? creada.pagos.map(p => ({ ...p, monto: Number(p.monto || 0) })) : [],
+      fecha: anchorDateObj(primeraCreada.fechaCopia),
+      start: anchorDateObj(primeraCreada.fechaCopia),
+      end: anchorDateObj(primeraCreada.fechaCopia),
+      fechaCopia: anchorDateObj(primeraCreada.fechaCopia),
+      pagos: primeraCreada.pagos
+        ? primeraCreada.pagos.map((p) => ({ ...p, monto: Number(p.monto || 0) }))
+        : [],
     };
 
     return res.status(201).json({
       ok: true,
-      msg: "Reserva registrada exitosamente",
+      msg: esRecurrente
+        ? `Turno Fijo registrado exitosamente (${reservasCreadas.length} reservas creadas)`
+        : "Reserva registrada exitosamente",
       reserva: reservaOut,
+      totalReservasCreadas: reservasCreadas.length,
     });
   } catch (error) {
     if (error.code === "P2002") {
@@ -411,7 +437,7 @@ async function crearReserva(req, res) {
         msg: "Turno ocupado para esa cancha, fecha y hora",
       });
     }
-    console.error(error);
+    console.error("Error en crearReserva:", error);
     return res
       .status(500)
       .json({ ok: false, msg: "Consulte con el administrador" });

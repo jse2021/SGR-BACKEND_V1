@@ -185,6 +185,9 @@ model Reserva {
   estado_pago String // "TOTAL" | "SEÑA" | "IMPAGO"
   forma_pago  String // "EFECTIVO" | "TRANSFERENCIA" | "..." (lo que uses)
   estado      String @default("activo") // "activo" | "inactivo" (soft delete)
+  // NUEVO: Campos para Turnos Fijos (Reservas Recurrentes)
+  turnoFijoId String?   // Código que agrupa todas las reservas de un mismo ciclo
+  frecuencia  String?   @default("NINGUNA") // "SEMANAL", "QUINCENAL", "MENSUAL", "NINGUNA"
 
   monto_cancha Decimal @default(0) @db.Decimal(12, 2)
   monto_sena   Decimal @default(0) @db.Decimal(12, 2)
@@ -246,6 +249,9 @@ model ReservaHist {
   // NUEVO: Guardaremos una foto exacta de los pagos divididos en formato JSON
   pagos_snapshot  Json?
   estado          String
+  // NUEVO: Historial de Turnos Fijos
+  turnoFijoId     String?
+  frecuencia      String?
   monto_cancha    Decimal   @db.Decimal(12, 2)
   monto_sena      Decimal   @db.Decimal(12, 2)
   fecha           DateTime
