@@ -271,7 +271,7 @@ async function crearReserva(req, res) {
       ? await prisma.usuario.findUnique({ where: { id: Number(uid) } })
       : null;
 
-  // 11) Transacción de Creación Masiva (Opción 1: Pago solo en la 1° fecha)
+ // 11) Transacción de Creación Masiva (Con timeout ampliado para turnos largos)
     let reservasCreadas = [];
 
     await prisma.$transaction(async (tx) => {
@@ -279,8 +279,6 @@ async function crearReserva(req, res) {
         const fUTC = fechasASeparar[i];
         const esPrimeraFecha = i === 0;
 
-        // Si es la primera fecha, guarda el pago registrado.
-        // Si es una fecha futura del Turno Fijo, se crea como IMPAGO.
         const ePago = esPrimeraFecha ? estadoPagoRequest : "IMPAGO";
         const fPago = esPrimeraFecha
           ? (listaPagos.map((p) => p.forma_pago).join(" + ") || forma_pago || "")
@@ -300,7 +298,6 @@ async function crearReserva(req, res) {
             forma_pago: fPago,
             estado: "activo",
 
-            // Campos de Turno Fijo
             turnoFijoId: turnoFijoId,
             frecuencia: esRecurrente ? frecuencia.toUpperCase() : "NINGUNA",
 
@@ -366,6 +363,8 @@ async function crearReserva(req, res) {
 
         reservasCreadas.push(creada);
       }
+    }, { 
+      timeout: 15000 // <--- Aumenta el tiempo límite de la transacción a 15 segundos
     });
 
    
