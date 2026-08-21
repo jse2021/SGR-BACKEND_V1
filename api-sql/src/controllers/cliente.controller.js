@@ -394,6 +394,77 @@ async function eliminarCliente(req, res) {
       .json({ ok: false, msg: "Consulte con el administrador" });
   }
 }
+// =====================================================================
+// CREAR CLIENTE EXPRESS (INVITADO)
+// =====================================================================
+async function crearClienteExpress(req, res) {
+  try {
+    const { nombre } = req.body;
+
+    if (!nombre || nombre.trim() === "") {
+      return res.status(400).json({ 
+        ok: false, 
+        msg: "El nombre es obligatorio para el cliente rápido" 
+      });
+    }
+
+    // 1. Generar un DNI temporal único (Ej: EXP-12345678)
+    const sufijoTiempo = Date.now().toString().slice(-6);
+    const random = Math.floor(Math.random() * 100);
+    const dniTemporal = `EXP-${sufijoTiempo}${random}`;
+
+    // Capturar usuario autenticado (igual que en tus otras funciones)
+    const actorId = req.id ?? req.uid ?? null;
+    const actorUser = req.user ?? req.userName ?? null;
+
+    let creado;
+
+    // 2. Transacción para crear Cliente y su Auditoría
+    await prisma.$transaction(async (tx) => {
+      creado = await tx.cliente.create({
+        data: {
+          dni: dniTemporal,
+          nombre: nombre.trim(),
+          apellido: "(Invitado)",
+          telefono: null,
+          email: null,
+          estado: "activo",
+          esExpress: true,
+        },
+      });
+
+      // Historial (versión = 1)
+      await tx.clienteHist.create({
+        data: {
+          clienteId: creado.id,
+          version: 1,
+          accion: "CREAR",
+          usuarioId: actorId ? Number(actorId) : null,
+          user: actorUser,
+          dni: creado.dni,
+          nombre: creado.nombre,
+          apellido: creado.apellido,
+          telefono: creado.telefono,
+          email: creado.email,
+          estado: creado.estado,
+          esExpress: true,
+        },
+      });
+    });
+
+    return res.status(201).json({
+      ok: true,
+      msg: "Cliente invitado creado con éxito",
+      cliente: creado,
+    });
+  } catch (e) {
+    console.error("Error en crearClienteExpress:", e);
+    return res.status(500).json({ 
+      ok: false, 
+      msg: "Consulte con el administrador" 
+    });
+  }
+}
 
 module.exports = {
   crearCliente,
@@ -402,4 +473,5 @@ module.exports = {
   getClientePorApellido,
   actualizarCliente,
   eliminarCliente,
+  crearClienteExpress
 };

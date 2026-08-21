@@ -142,7 +142,7 @@ async function crearReserva(req, res) {
     const [clienteRow, canchaRow] = await Promise.all([
       prisma.cliente.findFirst({
         where: { estado: "activo", dni: dniCliente },
-        select: { id: true, nombre: true, apellido: true, email: true },
+        select: { id: true, nombre: true, apellido: true, email: true, esExpress: true }, // <--- AGREGADO
       }),
       prisma.cancha.findFirst({
         where: {
@@ -158,6 +158,7 @@ async function crearReserva(req, res) {
         .status(400)
         .json({ ok: false, msg: "No existe cliente (activo)" });
     }
+
     if (!canchaRow) {
       return res
         .status(400)
@@ -209,11 +210,19 @@ async function crearReserva(req, res) {
     const fechaInicioUTC = dateOnlyUTC(fechaRequest || fechaCopiaRequest);
     const horaStr = String(horaRequest || "00:00").padStart(5, "0");
 
-    // 7) Generación de lista de fechas según la Frecuencia
+// 7) Generación de lista de fechas según la Frecuencia
     const esRecurrente =
       frecuencia &&
       frecuencia.toUpperCase() !== "NINGUNA" &&
       fechaFinRequest;
+
+    // NUEVO: Bloqueo de turnos fijos para clientes express (AHORA EN EL LUGAR CORRECTO)
+    if (clienteRow.esExpress && esRecurrente) {
+      return res.status(400).json({ 
+        ok: false, 
+        msg: "Por seguridad operativa, no se pueden crear turnos fijos para clientes invitados. Por favor, registre al cliente formalmente." 
+      });
+    }
 
     const fechasASeparar = [fechaInicioUTC];
 

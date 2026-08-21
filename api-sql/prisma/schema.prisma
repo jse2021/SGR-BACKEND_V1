@@ -17,6 +17,8 @@ model Cliente {
   email    String?   
   Reserva  Reserva[]
   estado   String    @default("activo") // ← nuevo
+  // NUEVO: Identificador de cliente rápido
+  esExpress Boolean  @default(false)
 
   @@index([apellido, nombre])
   @@schema("v2")
@@ -37,6 +39,8 @@ model ClienteHist {
   estado    String
   user      String?
   changedAt DateTime @default(now())
+  // NUEVO: Historial de cliente rápido
+  esExpress Boolean?
 
   @@index([clienteId, changedAt])
   @@schema("v2")
