@@ -42,11 +42,15 @@ app.use(express.static("public"));
 app.use(express.json());
 
 // RUTAS
+
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/cliente", require("./routes/cliente"));
 app.use("/api/cancha", require("./routes/cancha"));
 app.use("/api/reserva", require("./routes/reserva"));
 app.use("/api/configuracion", require("./routes/configuracion"));
+// RUTAS WEB
+app.use("/api/public", require("./routes/public.routes")); // NUEVO: Rutas abiertas para la Web
+app.use("/api/auth", require("./routes/auth"));
 
 // (Opcional pero muy útil) Health check para el host
 app.get("/api/health", (req, res) => {
