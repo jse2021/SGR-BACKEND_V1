@@ -64,7 +64,7 @@ const crearReservaWeb = async (req, res) => {
           apellidoCliente: clienteWeb.apellido
         }
       });
-// 5. Conservar la trazabilidad
+// 5. Conservar la trazabilidad completa en el historial
       await tx.reservaHist.create({
         data: {
           reservaId: reserva.id,
@@ -76,10 +76,20 @@ const crearReservaWeb = async (req, res) => {
           expiraAt: reserva.expiraAt,
           nombreCliente: reserva.nombreCliente,
           apellidoCliente: reserva.apellidoCliente,
-          
-          // NUEVO: Replicamos los IDs obligatorios para el historial
           clienteId: reserva.clienteId,
-          canchaId: reserva.canchaId
+          canchaId: reserva.canchaId,
+          
+          // NUEVO: Campos obligatorios de pago y montos para auditoría
+          estado_pago: reserva.estado_pago,
+          forma_pago: reserva.forma_pago,
+          monto_cancha: reserva.monto_cancha,
+          monto_sena: reserva.monto_sena || 0,
+          fecha: reserva.fecha,
+          fechaCopia: reserva.fechaCopia,
+          hora: reserva.hora,
+          title: reserva.title || "Reserva Web",
+          start: reserva.fecha,
+          end: reserva.fecha
         }
       });
 
@@ -103,7 +113,110 @@ const crearReservaWeb = async (req, res) => {
     });
   }
 };
+// =====================================================================
+// OBTENER CATÁLOGO DE CANCHAS (PÚBLICO)
+// =====================================================================
+const obtenerCanchasWeb = async (req, res) => {
+  try {
+// Buscamos solo las canchas activas para mostrar en la web
+      const canchas = await prisma.cancha.findMany({
+        where: {
+          estado: "activo"
+        },
+        select: {
+          id: true,
+          nombre: true
+
+        },
+        orderBy: {
+          nombre: "asc"
+        }
+      });
+
+    return res.status(200).json({
+      ok: true,
+      canchas
+    });
+  } catch (error) {
+    console.error("Error en obtenerCanchasWeb:", error);
+    return res.status(500).json({ 
+      ok: false, 
+      msg: "Error al obtener el catálogo de canchas" 
+    });
+  }
+};// =====================================================================
+// CONSULTAR DISPONIBILIDAD DE HORARIOS (PÚBLICO)
+// =====================================================================
+const obtenerDisponibilidadWeb = async (req, res) => {
+  try {
+    const { canchaId, fecha } = req.query;
+
+    if (!canchaId || !fecha) {
+      return res.status(400).json({ 
+        ok: false, 
+        msg: "La cancha y la fecha son obligatorias" 
+      });
+    }
+
+    // 1. Rango de 24 horas para absorber las diferencias de zona horaria
+    const inicioDia = new Date(`${fecha}T00:00:00.000Z`);
+    const finDia = new Date(`${fecha}T23:59:59.999Z`);
+
+    // 2. Buscar turnos ocupados en ese rango
+    const reservasOcupadas = await prisma.reserva.findMany({
+      where: {
+        canchaId: Number(canchaId),
+        fecha: {
+          gte: inicioDia,
+          lte: finDia
+        },
+        estado: "activo"
+      },
+      select: { hora: true }
+    });
+
+    const horasBloqueadas = reservasOcupadas.map(r => r.hora);
+
+    // 3. Grilla base de horarios del complejo 
+    const grillaCompleta = [
+      "08:00",
+      "09:00",
+      "10:00",
+      "11:00",
+      "12:00",
+      "13:00",
+      "14:00",
+      "15:00",
+      "16:00",
+      "17:00",
+      "18:00",
+      "19:00",
+      "20:00",
+      "21:00",
+      "22:00",
+      "23:00",
+    ];
+
+    // 4. Filtrar para devolver solo lo libre
+    const horasLibres = grillaCompleta.filter(hora => !horasBloqueadas.includes(hora));
+
+    return res.status(200).json({
+      ok: true,
+      disponibles: horasLibres
+    });
+
+  } catch (error) {
+    console.error("Error en obtenerDisponibilidadWeb:", error);
+    return res.status(500).json({ 
+      ok: false, 
+      msg: "Error al calcular la disponibilidad" 
+    });
+  }
+};
+
 
 module.exports = {
-  crearReservaWeb
+  crearReservaWeb,
+  obtenerCanchasWeb,
+  obtenerDisponibilidadWeb
 };

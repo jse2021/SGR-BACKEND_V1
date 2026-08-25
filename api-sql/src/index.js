@@ -1,5 +1,6 @@
 const express = require("express");
 require("dotenv").config();
+const { iniciarLimpiezaWeb } = require('../cron/src/limpieza');
 // const { dbConection } = require("../database/config");
 // const { dbConnection } = require('../database/config');
 // const cors = require("cors"); // ya no es obligatorio si mantenés tu middleware manual
@@ -61,6 +62,12 @@ app.get("/api/health", (req, res) => {
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
+});
+// Iniciar tareas automáticas en segundo plano
+iniciarLimpiezaWeb();
+
+app.listen(process.env.PORT, () => {
+    console.log("Servidor corriendo en puerto", process.env.PORT);
 });
 
 // const express = require("express");
