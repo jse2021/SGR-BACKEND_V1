@@ -1,6 +1,9 @@
 const express = require("express");
 require("dotenv").config();
 
+const { iniciarLimpiezaWeb } = require('../cron/src/limpieza');
+
+
 const app = express();
 
 // BASE DE DATOS
@@ -8,9 +11,13 @@ const app = express();
 const { prisma } = require("./db");
 
 // CORS: Local + Producción, usando variables de entorno
-const allowedOrigins = [
-  "http://localhost:5173",
-  process.env.FRONTEND_URL,
+
+const allowedOrigins = [ 
+  "http://localhost:5173", 
+  "http://localhost:5174", 
+  process.env.FRONTEND_URL, 
+  "https://cliente-web-swart.vercel.app" // <--- NUEVA LÍNEA: Tu nuevo cliente web
+
 ].filter(Boolean);
 
 app.use((req, res, next) => {
@@ -38,11 +45,15 @@ app.use(express.static("public"));
 app.use(express.json());
 
 // RUTAS
+
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/cliente", require("./routes/cliente"));
 app.use("/api/cancha", require("./routes/cancha"));
 app.use("/api/reserva", require("./routes/reserva"));
 app.use("/api/configuracion", require("./routes/configuracion"));
+// RUTAS WEB
+app.use("/api/public", require("./routes/public.routes")); // NUEVO: Rutas abiertas para la Web
+app.use("/api/auth", require("./routes/auth"));
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true });
@@ -53,3 +64,86 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
 });
+
+// Iniciar tareas automáticas en segundo plano
+iniciarLimpiezaWeb();
+
+app.listen(process.env.PORT, () => {
+    console.log("Servidor corriendo en puerto", process.env.PORT);
+});
+
+// const express = require("express");
+// require("dotenv").config();
+// const { dbConection } = require("./database/config");
+// const cors = require("cors");
+
+// // CREAR SERVIDOR express
+// const app = express();
+
+// // BASE DE DATOS
+// dbConection();
+
+// // CORS DEFINITIVO para Localhost + Vercel
+
+// const allowedOrigins = [
+//   "http://localhost:5173",
+//   "https://sgr-frontend-v1-p5st.vercel.app",
+// ];
+
+// app.use((req, res, next) => {
+//   const origin = req.headers.origin;
+//   if (allowedOrigins.includes(origin)) {
+//     res.setHeader("Access-Control-Allow-Origin", origin);
+//   }
+//   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+//   res.setHeader(
+//     "Access-Control-Allow-Headers",
+//     "Content-Type, Authorization, x-token"
+//   );
+//   res.setHeader("Access-Control-Allow-Credentials", "true");
+
+//   if (req.method === "OPTIONS") {
+//     return res.sendStatus(204);
+//   }
+
+//   next();
+// });
+// // const allowedOrigins = [
+// //   "http://localhost:5173",
+// //   "https://sgr-frontend-v1-p5st.vercel.app",
+// // ];
+
+// // const corsOptions = {
+// //   origin: function (origin, callback) {
+// //     if (!origin || allowedOrigins.includes(origin)) {
+// //       callback(null, true);
+// //     } else {
+// //       callback(new Error("Not allowed by CORS"));
+// //     }
+// //   },
+// //   methods: "GET,POST,PUT,DELETE,OPTIONS",
+// //   allowedHeaders: ["Content-Type", "Authorization", "x-token"],
+// //   credentials: true,
+// //   optionsSuccessStatus: 204,
+// // };
+
+// // app.use(cors(corsOptions));
+
+// // DIRECTORIO PUBLICO
+// app.use(express.static("public"));
+
+// // LECTURA Y PARSEO DEL BODY
+// app.use(express.json());
+
+// // RUTAS
+// app.use("/api/auth", require("./routes/auth"));
+// app.use("/api/cliente", require("./routes/cliente"));
+// app.use("/api/cancha", require("./routes/cancha"));
+// app.use("/api/reserva", require("./routes/reserva"));
+// app.use("/api/configuracion", require("./routes/configuracion"));
+
+// // ESCUCHAR PETICIONES
+// app.listen(process.env.PORT, () => {
+//   console.log(`Servidor corriendo en puerto ${process.env.PORT}`);
+// });
+

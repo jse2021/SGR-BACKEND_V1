@@ -215,6 +215,10 @@ model Reserva {
   user            String? // username textual (además de usuarioId)
   observacion     String?
 
+  // NUEVO: Origen y Bloqueo Temporal (Soft Lock de 20 min)
+  origen      String    @default("LOCAL") // "LOCAL" (Administrador) o "WEB" (Cliente)
+  expiraAt    DateTime? // Hora exacta en la que caduca la reserva si el cliente no envía el comprobante
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -268,6 +272,10 @@ model ReservaHist {
   apellidoCliente String
   user            String?
   observacion     String?
+
+  // NUEVO: Historial de origen y candados
+  origen          String?
+  expiraAt        DateTime?
 
   @@unique([reservaId, version])
   @@index([reservaId, version])
