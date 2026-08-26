@@ -114,28 +114,36 @@ const crearReservaWeb = async (req, res) => {
   }
 };
 // =====================================================================
-// OBTENER CATÁLOGO DE CANCHAS (PÚBLICO)
+// OBTENER CATÁLOGO DE CANCHAS CON SUS PRECIOS (PÚBLICO)
 // =====================================================================
 const obtenerCanchasWeb = async (req, res) => {
   try {
-// Buscamos solo las canchas activas para mostrar en la web
-      const canchas = await prisma.cancha.findMany({
-        where: {
-          estado: "activo"
-        },
-        select: {
-          id: true,
-          nombre: true
+    // 1. Buscamos solo las canchas activas
+    const canchasActivas = await prisma.cancha.findMany({
+      where: { estado: "activo" },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: "asc" }
+    });
 
-        },
-        orderBy: {
-          nombre: "asc"
-        }
-      });
+    // 2. Buscamos el precio vigente de cada cancha en la tabla Configuracion
+    const canchasConPrecio = await Promise.all(
+      canchasActivas.map(async (cancha) => {
+        const conf = await prisma.configuracion.findFirst({
+          where: { canchaId: cancha.id },
+          orderBy: { createdAt: "desc" },
+        });
+        
+        return {
+          ...cancha,
+          monto_cancha: Number(conf?.monto_cancha || 0),
+          monto_sena: Number(conf?.monto_sena || 0)
+        };
+      })
+    );
 
     return res.status(200).json({
       ok: true,
-      canchas
+      canchas: canchasConPrecio
     });
   } catch (error) {
     console.error("Error en obtenerCanchasWeb:", error);
@@ -144,7 +152,8 @@ const obtenerCanchasWeb = async (req, res) => {
       msg: "Error al obtener el catálogo de canchas" 
     });
   }
-};// =====================================================================
+};
+// =====================================================================
 // CONSULTAR DISPONIBILIDAD DE HORARIOS (PÚBLICO)
 // =====================================================================
 const obtenerDisponibilidadWeb = async (req, res) => {

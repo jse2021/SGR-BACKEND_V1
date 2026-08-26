@@ -12,9 +12,11 @@ const app = express();
 const { prisma } = require("./db"); // opcional, si existe
 
 // CORS: Local + Producción, usando variables de entorno
-const allowedOrigins = [
-  "http://localhost:5173",
-  process.env.FRONTEND_URL, // ej: https://sgr-frontend-v1-p5st.vercel.app
+const allowedOrigins = [ 
+  "http://localhost:5173", 
+  "http://localhost:5174", 
+  process.env.FRONTEND_URL, 
+  "https://cliente-web-swart.vercel.app" // <--- NUEVA LÍNEA: Tu nuevo cliente web
 ].filter(Boolean);
 
 app.use((req, res, next) => {
