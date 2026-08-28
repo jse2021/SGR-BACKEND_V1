@@ -47,6 +47,22 @@ const crearReservaWeb = async (req, res) => {
       // 4. Crear el candado de tiempo (20 minutos hacia el futuro)
       const fechaExpiracion = new Date();
       fechaExpiracion.setMinutes(fechaExpiracion.getMinutes() + 20);
+
+      const fechaAnclada = new Date(`${fecha}T03:00:00.000Z`);
+
+      // NUEVO: Chequeo de colisión estricto para evitar duplicados
+      const turnoOcupado = await tx.reserva.findFirst({
+        where: {
+          canchaId: canchaRow.id,
+          fechaCopia: fechaAnclada,
+          hora: hora,
+          estado: "activo",
+        },
+      });
+
+      if (turnoOcupado) {
+        throw new Error("TURNO_OCUPADO");
+      }
       // 5. Crear la reserva transitoria (Usando canchaId y ancla horaria)
       const reserva = await tx.reserva.create({
         data: {
@@ -106,14 +122,18 @@ const crearReservaWeb = async (req, res) => {
       reserva: nuevaReserva,
     });
   } catch (error) {
-    // Imprimimos el error real en la terminal negra para nosotros
-    console.error("Error en crearReservaWeb:", error);
+    // NUEVO: Atrapamos el error de colisión y le avisamos al cliente
+    if (error.message === "TURNO_OCUPADO") {
+      return res.status(409).json({
+        ok: false,
+        msg: "Este turno ya fue registrado. Si volviste atrás por error, selecciona otro horario.",
+      });
+    }
 
-    // Le devolvemos un texto seguro al navegador (sin enviar el objeto error crudo)
-    return res.status(500).json({
-      ok: false,
-      msg: "Error interno al procesar la reserva web",
-    });
+    console.error("Error en crearReservaWeb:", error);
+    return res
+      .status(500)
+      .json({ ok: false, msg: "Error interno al procesar la reserva web" });
   }
 };
 // =====================================================================
