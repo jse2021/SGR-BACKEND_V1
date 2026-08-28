@@ -1,4 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 // =====================================================================
@@ -10,49 +10,53 @@ const crearReservaWeb = async (req, res) => {
 
     // 1. Validación de seguridad en el backend
     if (!nombre || !telefono || !cancha || !fecha || !hora) {
-      return res.status(400).json({ 
-        ok: false, 
-        msg: "El teléfono y los datos del turno son obligatorios" 
+      return res.status(400).json({
+        ok: false,
+        msg: "El teléfono y los datos del turno son obligatorios",
       });
     }
 
     const nuevaReserva = await prisma.$transaction(async (tx) => {
-     // 2. Buscar o crear al cliente usando el teléfono como DNI
+      // 2. Buscar o crear al cliente usando el teléfono como DNI
       let clienteWeb = await tx.cliente.findFirst({ where: { dni: telefono } });
-      
+
       if (!clienteWeb) {
         clienteWeb = await tx.cliente.create({
           data: {
             dni: telefono,
             nombre: nombre.trim(),
-            apellido: "(Web)", 
+            apellido: "(Web)",
             telefono: telefono,
             estado: "activo",
-            esExpress: true
-          }
+            esExpress: true,
+          },
         });
       }
 
       // NUEVO: 3. Buscar el ID real de la Cancha (Prisma necesita el ID, no el texto)
       const canchaRow = await tx.cancha.findFirst({
-        where: { nombre: { equals: cancha, mode: "insensitive" } }
+        where: { nombre: { equals: cancha, mode: "insensitive" } },
       });
 
       if (!canchaRow) {
-        return res.status(400).json({ ok: false, msg: "La cancha solicitada no existe" });
+        return res
+          .status(400)
+          .json({ ok: false, msg: "La cancha solicitada no existe" });
       }
 
       // 4. Crear el candado de tiempo (20 minutos hacia el futuro)
       const fechaExpiracion = new Date();
       fechaExpiracion.setMinutes(fechaExpiracion.getMinutes() + 20);
-
-      // 5. Crear la reserva transitoria (Usando canchaId)
+      // 5. Crear la reserva transitoria (Usando canchaId y ancla horaria)
       const reserva = await tx.reserva.create({
         data: {
           clienteId: clienteWeb.id,
-          canchaId: canchaRow.id, // <--- CAMBIO CLAVE: Usamos canchaId, no el texto 'cancha'
-          fecha: new Date(fecha),
-          fechaCopia: new Date(fecha),
+          canchaId: canchaRow.id,
+
+          // NUEVO: Forzamos las 03:00Z para alinear la zona horaria (UTC-3)
+          fecha: new Date(`${fecha}T03:00:00.000Z`),
+          fechaCopia: new Date(`${fecha}T03:00:00.000Z`),
+
           hora: hora,
           estado_pago: "IMPAGO",
           forma_pago: "TRANSFERENCIA",
@@ -61,10 +65,10 @@ const crearReservaWeb = async (req, res) => {
           origen: "WEB",
           expiraAt: fechaExpiracion,
           nombreCliente: clienteWeb.nombre,
-          apellidoCliente: clienteWeb.apellido
-        }
+          apellidoCliente: clienteWeb.apellido,
+        },
       });
-// 5. Conservar la trazabilidad completa en el historial
+      // 5. Conservar la trazabilidad completa en el historial
       await tx.reservaHist.create({
         data: {
           reservaId: reserva.id,
@@ -78,7 +82,7 @@ const crearReservaWeb = async (req, res) => {
           apellidoCliente: reserva.apellidoCliente,
           clienteId: reserva.clienteId,
           canchaId: reserva.canchaId,
-          
+
           // NUEVO: Campos obligatorios de pago y montos para auditoría
           estado_pago: reserva.estado_pago,
           forma_pago: reserva.forma_pago,
@@ -89,8 +93,8 @@ const crearReservaWeb = async (req, res) => {
           hora: reserva.hora,
           title: reserva.title || "Reserva Web",
           start: reserva.fecha,
-          end: reserva.fecha
-        }
+          end: reserva.fecha,
+        },
       });
 
       return reserva;
@@ -99,17 +103,16 @@ const crearReservaWeb = async (req, res) => {
     res.status(201).json({
       ok: true,
       msg: "Reserva pre-confirmada. Esperando comprobante.",
-      reserva: nuevaReserva
+      reserva: nuevaReserva,
     });
-
   } catch (error) {
     // Imprimimos el error real en la terminal negra para nosotros
-    console.error("Error en crearReservaWeb:", error); 
-    
+    console.error("Error en crearReservaWeb:", error);
+
     // Le devolvemos un texto seguro al navegador (sin enviar el objeto error crudo)
-    return res.status(500).json({ 
-      ok: false, 
-      msg: "Error interno al procesar la reserva web" 
+    return res.status(500).json({
+      ok: false,
+      msg: "Error interno al procesar la reserva web",
     });
   }
 };
@@ -122,7 +125,7 @@ const obtenerCanchasWeb = async (req, res) => {
     const canchasActivas = await prisma.cancha.findMany({
       where: { estado: "activo" },
       select: { id: true, nombre: true },
-      orderBy: { nombre: "asc" }
+      orderBy: { nombre: "asc" },
     });
 
     // 2. Buscamos el precio vigente de cada cancha en la tabla Configuracion
@@ -132,24 +135,24 @@ const obtenerCanchasWeb = async (req, res) => {
           where: { canchaId: cancha.id },
           orderBy: { createdAt: "desc" },
         });
-        
+
         return {
           ...cancha,
           monto_cancha: Number(conf?.monto_cancha || 0),
-          monto_sena: Number(conf?.monto_sena || 0)
+          monto_sena: Number(conf?.monto_sena || 0),
         };
-      })
+      }),
     );
 
     return res.status(200).json({
       ok: true,
-      canchas: canchasConPrecio
+      canchas: canchasConPrecio,
     });
   } catch (error) {
     console.error("Error en obtenerCanchasWeb:", error);
-    return res.status(500).json({ 
-      ok: false, 
-      msg: "Error al obtener el catálogo de canchas" 
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al obtener el catálogo de canchas",
     });
   }
 };
@@ -161,9 +164,9 @@ const obtenerDisponibilidadWeb = async (req, res) => {
     const { canchaId, fecha } = req.query;
 
     if (!canchaId || !fecha) {
-      return res.status(400).json({ 
-        ok: false, 
-        msg: "La cancha y la fecha son obligatorias" 
+      return res.status(400).json({
+        ok: false,
+        msg: "La cancha y la fecha son obligatorias",
       });
     }
 
@@ -177,16 +180,16 @@ const obtenerDisponibilidadWeb = async (req, res) => {
         canchaId: Number(canchaId),
         fecha: {
           gte: inicioDia,
-          lte: finDia
+          lte: finDia,
         },
-        estado: "activo"
+        estado: "activo",
       },
-      select: { hora: true }
+      select: { hora: true },
     });
 
-    const horasBloqueadas = reservasOcupadas.map(r => r.hora);
+    const horasBloqueadas = reservasOcupadas.map((r) => r.hora);
 
-    // 3. Grilla base de horarios del complejo 
+    // 3. Grilla base de horarios del complejo
     const grillaCompleta = [
       "08:00",
       "09:00",
@@ -207,25 +210,25 @@ const obtenerDisponibilidadWeb = async (req, res) => {
     ];
 
     // 4. Filtrar para devolver solo lo libre
-    const horasLibres = grillaCompleta.filter(hora => !horasBloqueadas.includes(hora));
+    const horasLibres = grillaCompleta.filter(
+      (hora) => !horasBloqueadas.includes(hora),
+    );
 
     return res.status(200).json({
       ok: true,
-      disponibles: horasLibres
+      disponibles: horasLibres,
     });
-
   } catch (error) {
     console.error("Error en obtenerDisponibilidadWeb:", error);
-    return res.status(500).json({ 
-      ok: false, 
-      msg: "Error al calcular la disponibilidad" 
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al calcular la disponibilidad",
     });
   }
 };
 
-
 module.exports = {
   crearReservaWeb,
   obtenerCanchasWeb,
-  obtenerDisponibilidadWeb
+  obtenerDisponibilidadWeb,
 };
