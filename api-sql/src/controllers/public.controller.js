@@ -209,34 +209,51 @@ const obtenerDisponibilidadWeb = async (req, res) => {
 
     const horasBloqueadas = reservasOcupadas.map((r) => r.hora);
 
-    // 3. Grilla base de horarios del complejo
-    const grillaCompleta = [
-      "08:00",
-      "09:00",
-      "10:00",
-      "11:00",
-      "12:00",
-      "13:00",
-      "14:00",
-      "15:00",
-      "16:00",
-      "17:00",
-      "18:00",
-      "19:00",
-      "20:00",
-      "21:00",
-      "22:00",
-      "23:00",
-    ];
+    // 3. Grilla base de horarios del complejo 
+    const grillaCompleta = [
+      "08:00",
+      "09:00",
+      "10:00",
+      "11:00",
+      "12:00",
+      "13:00",
+      "14:00",
+      "15:00",
+      "16:00",
+      "17:00",
+      "18:00",
+      "19:00",
+      "20:00",
+      "21:00",
+      "22:00",
+      "23:00",
+    ];
 
-    // 4. Filtrar para devolver solo lo libre
-    const horasLibres = grillaCompleta.filter(
-      (hora) => !horasBloqueadas.includes(hora),
-    );
+    // 4. Filtrar para eliminar los ocupados en la base de datos
+    let horasLibres = grillaCompleta.filter(hora => !horasBloqueadas.includes(hora));
+
+    // =================================================================
+    // NUEVO CONTROL: Eliminar horarios que ya pasaron (si la fecha es hoy)
+    // =================================================================
+    const ahoraUTC = new Date();
+    // Ajustamos el reloj del servidor a la zona horaria de Argentina (UTC-3)
+    const ahoraArg = new Date(ahoraUTC.getTime() + (-3) * 3600 * 1000);
+    const hoyStr = ahoraArg.toISOString().split("T")[0];
+
+    if (fecha === hoyStr) {
+      const horaActual = ahoraArg.getUTCHours();
+      const minActual = ahoraArg.getUTCMinutes();
+
+      horasLibres = horasLibres.filter(horaGrid => {
+        const [hGrid, mGrid] = horaGrid.split(":").map(Number);
+        // Mantiene el horario solo si es estrictamente mayor al tiempo actual
+        return hGrid > horaActual || (hGrid === horaActual && mGrid > minActual);
+      });
+    }
 
     return res.status(200).json({
       ok: true,
-      disponibles: horasLibres,
+      disponibles: horasLibres
     });
   } catch (error) {
     console.error("Error en obtenerDisponibilidadWeb:", error);
