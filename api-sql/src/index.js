@@ -1,3 +1,5 @@
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const express = require("express");
 require("dotenv").config();
 
@@ -5,12 +7,23 @@ const { iniciarLimpiezaWeb } = require("../cron/src/limpieza");
 
 const app = express();
 
-// BASE DE DATOS
+// 1. HELMET: Oculta cabeceras vulnerables y protege contra ataques comunes
+app.use(helmet()); 
 
+// 2. RATE LIMITING: Límite estricto para rutas públicas (máximo 15 peticiones cada 15 minutos por IP)
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 15, 
+  message: { 
+    ok: false, 
+    msg: "Demasiados intentos desde este dispositivo. Por favor, espera 15 minutos para volver a intentar." 
+  }
+});
+
+// BASE DE DATOS
 const { prisma } = require("./db");
 
 // CORS: Local + Producción, usando variables de entorno
-
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
@@ -51,8 +64,7 @@ app.use("/api/reserva", require("./routes/reserva"));
 app.use("/api/configuracion", require("./routes/configuracion"));
 app.use("/api/dashboard", require("./routes/dashboard"));
 // RUTAS WEB
-app.use("/api/public", require("./routes/public.routes")); // NUEVO: Rutas abiertas para la Web
-app.use("/api/auth", require("./routes/auth"));
+app.use("/api/public", publicLimiter, require("./routes/public.routes")); // <--- ESCUDO APLICADO AQUÍ
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true });
